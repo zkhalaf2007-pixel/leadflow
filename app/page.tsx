@@ -38,7 +38,6 @@ function getNextAction(lastContact: string | null) {
 
   const today = new Date();
   const last = new Date(lastContact);
-
   const diffDays = Math.floor(
     (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -46,26 +45,18 @@ function getNextAction(lastContact: string | null) {
   if (diffDays >= 3) return "OVERDUE — CALL NOW";
   if (diffDays === 2) return "Follow Up Today";
   if (diffDays === 1) return "Check Soon";
-
   return "Up to Date";
 }
 
-function getActionColor(action: string) {
-  if (action === "OVERDUE — CALL NOW") return "red";
-  if (action === "Follow Up Today") return "orange";
-  if (action === "Check Soon") return "goldenrod";
-  if (action === "Up to Date") return "green";
-  return "black";
-}
-
-function getStatusColor(status: string) {
-  if (status === "Won") return "green";
-  if (status === "Lost") return "red";
-  if (status === "Offer Made") return "purple";
-  if (status === "Viewing Scheduled") return "blue";
-  if (status === "Contacted") return "orange";
-  if (status === "Followed Up") return "green";
-  return "gray";
+function badgeColor(value: string) {
+  if (value.includes("OVERDUE")) return "#dc2626";
+  if (value === "Follow Up Today") return "#f97316";
+  if (value === "Check Soon") return "#ca8a04";
+  if (value === "Up to Date" || value === "Won" || value === "Followed Up") return "#16a34a";
+  if (value === "Lost") return "#dc2626";
+  if (value === "Viewing Scheduled") return "#2563eb";
+  if (value === "Offer Made") return "#7c3aed";
+  return "#64748b";
 }
 
 export default function Home() {
@@ -85,7 +76,6 @@ export default function Home() {
       email: authEmail,
       password: authPassword,
     });
-
     if (error) return alert(error.message);
     alert("Account created. Now log in.");
   }
@@ -95,7 +85,6 @@ export default function Home() {
       email: authEmail,
       password: authPassword,
     });
-
     if (error) return alert(error.message);
   }
 
@@ -119,7 +108,6 @@ export default function Home() {
       .order("created_at", { ascending: false });
 
     if (error) return alert("Error loading leads");
-
     setLeads(data || []);
   }
 
@@ -159,7 +147,7 @@ export default function Home() {
       .from("leads")
       .update({
         last_contact: today,
-        next_action: getNextAction(today),
+        next_action: "Up to Date",
         status: "Contacted",
       })
       .eq("id", id);
@@ -187,11 +175,11 @@ export default function Home() {
       .eq("id", lead.id);
 
     const cleanPhone = lead.phone.replace(/\D/g, "");
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
-      message
-    )}`;
+    window.open(
+      `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`,
+      "_blank"
+    );
 
-    window.open(url, "_blank");
     fetchLeads();
   }
 
@@ -224,228 +212,186 @@ export default function Home() {
 
   if (!user) {
     return (
-      <main style={{ padding: 20, fontFamily: "Arial" }}>
-        <h1>LeadFlow Login</h1>
+      <main style={styles.loginPage}>
+        <div style={styles.loginCard}>
+          <h1 style={styles.logo}>LeadFlow</h1>
+          <p style={styles.subtitle}>Real estate follow-up system</p>
 
-        <input
-          value={authEmail}
-          onChange={(e) => setAuthEmail(e.target.value)}
-          placeholder="Email"
-          style={{ padding: 8, marginRight: 8 }}
-        />
+          <input style={styles.input} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" />
+          <input style={styles.input} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" />
 
-        <input
-          type="password"
-          value={authPassword}
-          onChange={(e) => setAuthPassword(e.target.value)}
-          placeholder="Password"
-          style={{ padding: 8, marginRight: 8 }}
-        />
-
-        <button onClick={logIn}>Log In</button>
-        <button onClick={signUp} style={{ marginLeft: 8 }}>
-          Sign Up
-        </button>
+          <button style={styles.primaryButton} onClick={logIn}>Log In</button>
+          <button style={styles.secondaryButton} onClick={signUp}>Sign Up</button>
+        </div>
       </main>
     );
   }
 
   const totalLeads = leads.length;
-  const overdueLeads = leads.filter(
-    (l) => l.next_action === "OVERDUE — CALL NOW"
-  ).length;
-  const needsAction = leads.filter(
-    (l) => l.next_action === "Follow Up Today" || l.next_action === "Check Soon"
-  ).length;
-  const upToDate = leads.filter((l) => l.next_action === "Up to Date").length;
-  const wonLeads = leads.filter((l) => l.status === "Won").length;
-  const lostLeads = leads.filter((l) => l.status === "Lost").length;
-
-  const followUps = leads.filter(
-    (l) =>
-      l.next_action === "OVERDUE — CALL NOW" ||
-      l.next_action === "Follow Up Today"
-  );
-
+  const overdue = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
+  const followUps = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW" || l.next_action === "Follow Up Today");
+  const won = leads.filter((l) => l.status === "Won").length;
   const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
 
   return (
-    <main style={{ padding: 20, fontFamily: "Arial" }}>
-      <h1>LeadFlow</h1>
+    <main style={styles.app}>
+      <aside style={styles.sidebar}>
+        <h1 style={styles.sidebarLogo}>LeadFlow</h1>
+        <div style={styles.navItem}>Dashboard</div>
+        <div style={styles.navItem}>Follow-Ups</div>
+        <div style={styles.navItem}>Leads</div>
+        <div style={styles.navItem}>Consultants</div>
+      </aside>
 
-      <div style={{ marginBottom: 20 }}>
-        Logged in as: <strong>{user.email}</strong>
-        <button onClick={logOut} style={{ marginLeft: 10 }}>
-          Log Out
-        </button>
-      </div>
-
-      <h2>Dashboard</h2>
-
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <div><strong>Total Leads:</strong> {totalLeads}</div>
-        <div style={{ color: "red" }}><strong>Overdue:</strong> {overdueLeads}</div>
-        <div style={{ color: "orange" }}><strong>Needs Action:</strong> {needsAction}</div>
-        <div style={{ color: "green" }}><strong>Up to Date:</strong> {upToDate}</div>
-        <div style={{ color: "green" }}><strong>Won:</strong> {wonLeads}</div>
-        <div style={{ color: "red" }}><strong>Lost:</strong> {lostLeads}</div>
-      </div>
-
-      <h2>Follow-Up Queue</h2>
-
-      {followUps.length === 0 && <div>No urgent leads 🎉</div>}
-
-      {followUps.map((lead) => (
-        <div
-          key={lead.id}
-          style={{
-            border: `2px solid ${getActionColor(lead.next_action)}`,
-            padding: 12,
-            marginBottom: 10,
-            borderRadius: 8,
-          }}
-        >
-          <strong>{lead.name}</strong>
-          <div>Consultant: {lead.consultant}</div>
-          <div>Phone: {lead.phone || "No phone"}</div>
-          <div style={{ color: getActionColor(lead.next_action), fontWeight: "bold" }}>
-            {lead.next_action}
+      <section style={styles.content}>
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.title}>Dashboard</h1>
+            <p style={styles.subtitle}>Manage leads, follow-ups, and agent activity.</p>
           </div>
+          <button onClick={logOut} style={styles.logout}>Log Out</button>
+        </header>
 
-          <button onClick={() => markContacted(lead.id)}>Mark Contacted</button>
-
-          <button
-            onClick={() => openWhatsApp(lead)}
-            style={{ marginLeft: 8, background: "green", color: "white" }}
-          >
-            WhatsApp
-          </button>
+        <div style={styles.cards}>
+          <Card label="Total Leads" value={totalLeads} />
+          <Card label="Urgent Follow-Ups" value={followUps.length} color="#f97316" />
+          <Card label="Overdue" value={overdue} color="#dc2626" />
+          <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
-      ))}
 
-      <h2>Consultant Scoreboard</h2>
-
-      {consultants.length === 0 && <div>No consultant data yet.</div>}
-
-      {consultants.map((person) => {
-        const personLeads = leads.filter((l) => l.consultant === person);
-        const personOverdue = personLeads.filter(
-          (l) => l.next_action === "OVERDUE — CALL NOW"
-        ).length;
-        const personWon = personLeads.filter((l) => l.status === "Won").length;
-
-        return (
-          <div
-            key={person}
-            style={{
-              border: "1px solid #ccc",
-              padding: 10,
-              marginBottom: 8,
-              borderRadius: 8,
-            }}
-          >
-            <strong>{person}</strong>
-            <div>Total Leads: {personLeads.length}</div>
-            <div style={{ color: "red" }}>Overdue Leads: {personOverdue}</div>
-            <div style={{ color: "green" }}>Won Leads: {personWon}</div>
+        <section style={styles.panel}>
+          <h2>Add Lead</h2>
+          <div style={styles.formGrid}>
+            <input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
+            <input style={styles.input} value={consultant} onChange={(e) => setConsultant(e.target.value)} placeholder="Consultant" />
+            <input style={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
+            <input style={styles.input} type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
+            <select style={styles.input} value={status} onChange={(e) => setStatus(e.target.value)}>
+              {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+            </select>
+            <button style={styles.primaryButton} onClick={addLead}>Add Lead</button>
           </div>
-        );
-      })}
+        </section>
 
-      <h2>Add Lead</h2>
+        <section style={styles.panel}>
+          <h2>Follow-Up Queue</h2>
+          {followUps.length === 0 && <p>No urgent leads 🎉</p>}
+          {followUps.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+            />
+          ))}
+        </section>
 
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Client name"
-        style={{ padding: 6, marginRight: 8 }}
-      />
+        <section style={styles.panel}>
+          <h2>Consultant Scoreboard</h2>
+          {consultants.map((person) => {
+            const personLeads = leads.filter((l) => l.consultant === person);
+            return (
+              <div key={person} style={styles.scoreRow}>
+                <strong>{person}</strong>
+                <span>{personLeads.length} leads</span>
+              </div>
+            );
+          })}
+        </section>
 
-      <input
-        value={consultant}
-        onChange={(e) => setConsultant(e.target.value)}
-        placeholder="Consultant"
-        style={{ padding: 6, marginRight: 8 }}
-      />
-
-      <input
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder="Phone e.g. 97450123456"
-        style={{ padding: 6, marginRight: 8 }}
-      />
-
-      <input
-        type="date"
-        value={lastContact}
-        onChange={(e) => setLastContact(e.target.value)}
-        style={{ padding: 6, marginRight: 8 }}
-      />
-
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        style={{ padding: 6, marginRight: 8 }}
-      >
-        {STATUS_OPTIONS.map((s) => (
-          <option key={s}>{s}</option>
-        ))}
-      </select>
-
-      <button onClick={addLead}>Add</button>
-
-      <h2>All Leads</h2>
-
-      {leads.map((lead) => (
-        <div
-          key={lead.id}
-          style={{
-            border: "1px solid #ddd",
-            padding: 12,
-            marginBottom: 10,
-            borderRadius: 8,
-          }}
-        >
-          <strong>{lead.name}</strong>
-          <div>Consultant: {lead.consultant}</div>
-          <div>Phone: {lead.phone || "No phone"}</div>
-          <div>Last Contact: {lead.last_contact || "None"}</div>
-
-          <div style={{ color: getActionColor(lead.next_action), fontWeight: "bold" }}>
-            Next Action: {lead.next_action}
-          </div>
-
-          <div style={{ color: getStatusColor(lead.status), fontWeight: "bold" }}>
-            Status: {lead.status || "New"}
-          </div>
-
-          <select
-            value={lead.status || "New"}
-            onChange={(e) => updateStatus(lead.id, e.target.value)}
-            style={{ marginTop: 8, marginRight: 8 }}
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-
-          <button onClick={() => markContacted(lead.id)}>Mark Contacted</button>
-
-          <button
-            onClick={() => openWhatsApp(lead)}
-            style={{ marginLeft: 8, background: "green", color: "white" }}
-          >
-            WhatsApp
-          </button>
-
-          <button
-            onClick={() => deleteLead(lead.id)}
-            style={{ marginLeft: 8, background: "red", color: "white" }}
-          >
-            Delete
-          </button>
-        </div>
-      ))}
+        <section style={styles.panel}>
+          <h2>All Leads</h2>
+          {leads.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+            />
+          ))}
+        </section>
+      </section>
     </main>
   );
 }
+
+function Card({ label, value, color = "#0f172a" }: { label: string; value: number; color?: string }) {
+  return (
+    <div style={styles.card}>
+      <div style={styles.cardLabel}>{label}</div>
+      <div style={{ ...styles.cardValue, color }}>{value}</div>
+    </div>
+  );
+}
+
+function LeadCard({ lead, updateStatus, markContacted, openWhatsApp, deleteLead }: any) {
+  return (
+    <div style={styles.leadCard}>
+      <div>
+        <strong style={styles.leadName}>{lead.name}</strong>
+        <p>Consultant: {lead.consultant}</p>
+        <p>Phone: {lead.phone || "No phone"}</p>
+        <span style={{ ...styles.badge, background: badgeColor(lead.next_action) }}>
+          {lead.next_action}
+        </span>
+        <span style={{ ...styles.badge, background: badgeColor(lead.status), marginLeft: 8 }}>
+          {lead.status}
+        </span>
+      </div>
+
+      <div style={styles.actions}>
+        <select style={styles.smallInput} value={lead.status || "New"} onChange={(e) => updateStatus(lead.id, e.target.value)}>
+          {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+        </select>
+
+        <button style={styles.secondaryButton} onClick={() => markContacted(lead.id)}>
+          Mark Contacted
+        </button>
+
+        <button style={styles.whatsappButton} onClick={() => openWhatsApp(lead)}>
+          🟢 WhatsApp
+        </button>
+
+        <button style={styles.deleteButton} onClick={() => deleteLead(lead.id)}>
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  app: { display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "Arial" },
+  sidebar: { width: 240, background: "#0f172a", color: "white", padding: 24 },
+  sidebarLogo: { fontSize: 26, marginBottom: 30 },
+  navItem: { padding: "12px 0", color: "#cbd5e1" },
+  content: { flex: 1, padding: 32 },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
+  title: { margin: 0, fontSize: 32 },
+  subtitle: { color: "#64748b" },
+  cards: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 },
+  card: { background: "white", padding: 20, borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
+  cardLabel: { color: "#64748b", fontSize: 14 },
+  cardValue: { fontSize: 32, fontWeight: "bold", marginTop: 8 },
+  panel: { background: "white", padding: 24, borderRadius: 16, marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
+  formGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 },
+  input: { padding: 12, border: "1px solid #cbd5e1", borderRadius: 10 },
+  smallInput: { padding: 8, borderRadius: 8, border: "1px solid #cbd5e1" },
+  primaryButton: { padding: 12, borderRadius: 10, border: "none", background: "#2563eb", color: "white", cursor: "pointer" },
+  secondaryButton: { padding: 10, borderRadius: 10, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" },
+  logout: { padding: 10, borderRadius: 10, border: "none", background: "#0f172a", color: "white" },
+  leadCard: { border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, marginBottom: 12, display: "flex", justifyContent: "space-between", gap: 16 },
+  leadName: { fontSize: 18 },
+  badge: { color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 12, display: "inline-block" },
+  actions: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  whatsappButton: { padding: 10, borderRadius: 10, border: "none", background: "#16a34a", color: "white", cursor: "pointer" },
+  deleteButton: { padding: 10, borderRadius: 10, border: "none", background: "#dc2626", color: "white", cursor: "pointer" },
+  scoreRow: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", padding: "10px 0" },
+  loginPage: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "Arial" },
+  loginCard: { background: "white", padding: 32, borderRadius: 18, width: 360, boxShadow: "0 10px 30px rgba(0,0,0,0.08)" },
+  logo: { margin: 0, fontSize: 34 },
+};
