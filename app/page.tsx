@@ -12,6 +12,7 @@ type Lead = {
   id: string;
   name: string;
   consultant: string;
+  phone: string | null;
   last_contact: string | null;
   next_action: string;
   status: string;
@@ -21,6 +22,7 @@ type Lead = {
 const STATUS_OPTIONS = [
   "New",
   "Contacted",
+  "Followed Up",
   "Viewing Scheduled",
   "Offer Made",
   "Won",
@@ -62,6 +64,7 @@ function getStatusColor(status: string) {
   if (status === "Offer Made") return "purple";
   if (status === "Viewing Scheduled") return "blue";
   if (status === "Contacted") return "orange";
+  if (status === "Followed Up") return "green";
   return "gray";
 }
 
@@ -73,6 +76,7 @@ export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
   const [consultant, setConsultant] = useState("");
+  const [phone, setPhone] = useState("");
   const [lastContact, setLastContact] = useState("");
   const [status, setStatus] = useState("New");
 
@@ -125,6 +129,7 @@ export default function Home() {
     const { error } = await supabase.from("leads").insert({
       name,
       consultant,
+      phone,
       last_contact: lastContact || null,
       next_action: getNextAction(lastContact || null),
       status,
@@ -135,6 +140,7 @@ export default function Home() {
 
     setName("");
     setConsultant("");
+    setPhone("");
     setLastContact("");
     setStatus("New");
     fetchLeads();
@@ -159,6 +165,33 @@ export default function Home() {
       .eq("id", id);
 
     if (error) return alert("Error updating lead");
+    fetchLeads();
+  }
+
+  async function openWhatsApp(lead: Lead) {
+    if (!lead.phone) {
+      alert("No phone number saved for this lead");
+      return;
+    }
+
+    const message =
+      "Hello, how are you? I’m just checking to see if you’re still looking for an apartment.";
+
+    await supabase
+      .from("leads")
+      .update({
+        last_contact: getTodayDate(),
+        next_action: "Up to Date",
+        status: "Followed Up",
+      })
+      .eq("id", lead.id);
+
+    const cleanPhone = lead.phone.replace(/\D/g, "");
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+      message
+    )}`;
+
+    window.open(url, "_blank");
     fetchLeads();
   }
 
@@ -218,7 +251,9 @@ export default function Home() {
   }
 
   const totalLeads = leads.length;
-  const overdueLeads = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
+  const overdueLeads = leads.filter(
+    (l) => l.next_action === "OVERDUE — CALL NOW"
+  ).length;
   const needsAction = leads.filter(
     (l) => l.next_action === "Follow Up Today" || l.next_action === "Check Soon"
   ).length;
@@ -227,7 +262,9 @@ export default function Home() {
   const lostLeads = leads.filter((l) => l.status === "Lost").length;
 
   const followUps = leads.filter(
-    (l) => l.next_action === "OVERDUE — CALL NOW" || l.next_action === "Follow Up Today"
+    (l) =>
+      l.next_action === "OVERDUE — CALL NOW" ||
+      l.next_action === "Follow Up Today"
   );
 
   const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
@@ -270,10 +307,19 @@ export default function Home() {
         >
           <strong>{lead.name}</strong>
           <div>Consultant: {lead.consultant}</div>
+          <div>Phone: {lead.phone || "No phone"}</div>
           <div style={{ color: getActionColor(lead.next_action), fontWeight: "bold" }}>
             {lead.next_action}
           </div>
+
           <button onClick={() => markContacted(lead.id)}>Mark Contacted</button>
+
+          <button
+            onClick={() => openWhatsApp(lead)}
+            style={{ marginLeft: 8, background: "green", color: "white" }}
+          >
+            WhatsApp
+          </button>
         </div>
       ))}
 
@@ -323,6 +369,13 @@ export default function Home() {
       />
 
       <input
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="Phone e.g. 97450123456"
+        style={{ padding: 6, marginRight: 8 }}
+      />
+
+      <input
         type="date"
         value={lastContact}
         onChange={(e) => setLastContact(e.target.value)}
@@ -355,6 +408,7 @@ export default function Home() {
         >
           <strong>{lead.name}</strong>
           <div>Consultant: {lead.consultant}</div>
+          <div>Phone: {lead.phone || "No phone"}</div>
           <div>Last Contact: {lead.last_contact || "None"}</div>
 
           <div style={{ color: getActionColor(lead.next_action), fontWeight: "bold" }}>
@@ -376,6 +430,13 @@ export default function Home() {
           </select>
 
           <button onClick={() => markContacted(lead.id)}>Mark Contacted</button>
+
+          <button
+            onClick={() => openWhatsApp(lead)}
+            style={{ marginLeft: 8, background: "green", color: "white" }}
+          >
+            WhatsApp
+          </button>
 
           <button
             onClick={() => deleteLead(lead.id)}
