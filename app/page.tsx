@@ -13,6 +13,7 @@ type Lead = {
   name: string;
   consultant: string;
   phone: string | null;
+  reference_number: string | null;
   last_contact: string | null;
   next_action: string;
   status: string;
@@ -38,6 +39,7 @@ function getNextAction(lastContact: string | null) {
 
   const today = new Date();
   const last = new Date(lastContact);
+
   const diffDays = Math.floor(
     (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -68,6 +70,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [consultant, setConsultant] = useState("");
   const [phone, setPhone] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
   const [lastContact, setLastContact] = useState("");
   const [status, setStatus] = useState("New");
 
@@ -95,16 +98,13 @@ export default function Home() {
   }
 
   async function fetchLeads() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
 
     const { data, error } = await supabase
       .from("leads")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userData.user.id)
       .order("created_at", { ascending: false });
 
     if (error) return alert("Error loading leads");
@@ -118,6 +118,7 @@ export default function Home() {
       name,
       consultant,
       phone,
+      reference_number: referenceNumber,
       last_contact: lastContact || null,
       next_action: getNextAction(lastContact || null),
       status,
@@ -129,6 +130,7 @@ export default function Home() {
     setName("");
     setConsultant("");
     setPhone("");
+    setReferenceNumber("");
     setLastContact("");
     setStatus("New");
     fetchLeads();
@@ -210,90 +212,90 @@ export default function Home() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  const followUps = leads.filter(
+    (l) =>
+      l.next_action === "OVERDUE — CALL NOW" ||
+      l.next_action === "Follow Up Today"
+  );
+
+  const overdue = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
+  const won = leads.filter((l) => l.status === "Won").length;
+  const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
+
   if (!user) {
     return (
-      <main style={styles.loginPage}>
-        <div style={styles.loginCard}>
-          <h1 style={styles.logo}>LeadFlow</h1>
-          <p style={styles.subtitle}>Real estate follow-up system</p>
+      <main className="loginPage">
+        <div className="loginCard">
+          <h1>LeadFlow</h1>
+          <p>Real estate follow-up system</p>
 
-          <input style={styles.input} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" />
-          <input style={styles.input} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" />
+          <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" />
+          <input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" />
 
-          <button style={styles.primaryButton} onClick={logIn}>Log In</button>
-          <button style={styles.secondaryButton} onClick={signUp}>Sign Up</button>
+          <button className="primaryButton" onClick={logIn}>Log In</button>
+          <button className="secondaryButton" onClick={signUp}>Sign Up</button>
         </div>
+
+        <GlobalStyles />
       </main>
     );
   }
 
-  const totalLeads = leads.length;
-  const overdue = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
-  const followUps = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW" || l.next_action === "Follow Up Today");
-  const won = leads.filter((l) => l.status === "Won").length;
-  const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
-
   return (
-    <main style={styles.app}>
-      <aside style={styles.sidebar}>
-        <h1 style={styles.sidebarLogo}>LeadFlow</h1>
-        <div style={styles.navItem}>Dashboard</div>
-        <div style={styles.navItem}>Follow-Ups</div>
-        <div style={styles.navItem}>Leads</div>
-        <div style={styles.navItem}>Consultants</div>
+    <main className="app">
+      <aside className="sidebar">
+        <h1>LeadFlow</h1>
+        <p>Dashboard</p>
+        <p>Follow-Ups</p>
+        <p>Leads</p>
+        <p>Consultants</p>
       </aside>
 
-      <section style={styles.content}>
-        <header style={styles.header}>
+      <section className="content">
+        <header className="header">
           <div>
-            <h1 style={styles.title}>Dashboard</h1>
-            <p style={styles.subtitle}>Manage leads, follow-ups, and agent activity.</p>
+            <h1>Dashboard</h1>
+            <p>Manage leads, follow-ups, and consultant activity.</p>
           </div>
-          <button onClick={logOut} style={styles.logout}>Log Out</button>
+          <button className="darkButton" onClick={logOut}>Log Out</button>
         </header>
 
-        <div style={styles.cards}>
-          <Card label="Total Leads" value={totalLeads} />
+        <div className="cards">
+          <Card label="Total Leads" value={leads.length} />
           <Card label="Urgent Follow-Ups" value={followUps.length} color="#f97316" />
           <Card label="Overdue" value={overdue} color="#dc2626" />
           <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
 
-        <section style={styles.panel}>
+        <section className="panel">
           <h2>Add Lead</h2>
-          <div style={styles.formGrid}>
-            <input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
-            <input style={styles.input} value={consultant} onChange={(e) => setConsultant(e.target.value)} placeholder="Consultant" />
-            <input style={styles.input} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
-            <input style={styles.input} type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
-            <select style={styles.input} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <div className="formGrid">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
+            <input value={consultant} onChange={(e) => setConsultant(e.target.value)} placeholder="Consultant" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
+            <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Reference Number" />
+            <input type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
             </select>
-            <button style={styles.primaryButton} onClick={addLead}>Add Lead</button>
+            <button className="primaryButton" onClick={addLead}>Add Lead</button>
           </div>
         </section>
 
-        <section style={styles.panel}>
+        <section className="panel">
           <h2>Follow-Up Queue</h2>
           {followUps.length === 0 && <p>No urgent leads 🎉</p>}
           {followUps.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-            />
+            <LeadCard key={lead.id} lead={lead} updateStatus={updateStatus} markContacted={markContacted} openWhatsApp={openWhatsApp} deleteLead={deleteLead} />
           ))}
         </section>
 
-        <section style={styles.panel}>
+        <section className="panel">
           <h2>Consultant Scoreboard</h2>
           {consultants.map((person) => {
             const personLeads = leads.filter((l) => l.consultant === person);
             return (
-              <div key={person} style={styles.scoreRow}>
+              <div className="scoreRow" key={person}>
                 <strong>{person}</strong>
                 <span>{personLeads.length} leads</span>
               </div>
@@ -301,97 +303,282 @@ export default function Home() {
           })}
         </section>
 
-        <section style={styles.panel}>
+        <section className="panel">
           <h2>All Leads</h2>
           {leads.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-            />
+            <LeadCard key={lead.id} lead={lead} updateStatus={updateStatus} markContacted={markContacted} openWhatsApp={openWhatsApp} deleteLead={deleteLead} />
           ))}
         </section>
       </section>
+
+      <GlobalStyles />
     </main>
   );
 }
 
 function Card({ label, value, color = "#0f172a" }: { label: string; value: number; color?: string }) {
   return (
-    <div style={styles.card}>
-      <div style={styles.cardLabel}>{label}</div>
-      <div style={{ ...styles.cardValue, color }}>{value}</div>
+    <div className="card">
+      <div className="cardLabel">{label}</div>
+      <div className="cardValue" style={{ color }}>{value}</div>
     </div>
   );
 }
 
 function LeadCard({ lead, updateStatus, markContacted, openWhatsApp, deleteLead }: any) {
   return (
-    <div style={styles.leadCard}>
+    <div className="leadCard">
       <div>
-        <strong style={styles.leadName}>{lead.name}</strong>
+        <strong className="leadName">{lead.name}</strong>
         <p>Consultant: {lead.consultant}</p>
         <p>Phone: {lead.phone || "No phone"}</p>
-        <span style={{ ...styles.badge, background: badgeColor(lead.next_action) }}>
+        <p>Ref: {lead.reference_number || "N/A"}</p>
+
+        <span className="badge" style={{ background: badgeColor(lead.next_action) }}>
           {lead.next_action}
         </span>
-        <span style={{ ...styles.badge, background: badgeColor(lead.status), marginLeft: 8 }}>
+
+        <span className="badge" style={{ background: badgeColor(lead.status), marginLeft: 8 }}>
           {lead.status}
         </span>
       </div>
 
-      <div style={styles.actions}>
-        <select style={styles.smallInput} value={lead.status || "New"} onChange={(e) => updateStatus(lead.id, e.target.value)}>
+      <div className="actions">
+        <select value={lead.status || "New"} onChange={(e) => updateStatus(lead.id, e.target.value)}>
           {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
         </select>
 
-        <button style={styles.secondaryButton} onClick={() => markContacted(lead.id)}>
-          Mark Contacted
+        <button className="secondaryButton" onClick={() => markContacted(lead.id)}>Mark Contacted</button>
+
+        <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
+          <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" />
+          WhatsApp
         </button>
 
-        <button style={styles.whatsappButton} onClick={() => openWhatsApp(lead)}>
-          🟢 WhatsApp
-        </button>
-
-        <button style={styles.deleteButton} onClick={() => deleteLead(lead.id)}>
-          Delete
-        </button>
+        <button className="deleteButton" onClick={() => deleteLead(lead.id)}>Delete</button>
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  app: { display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "Arial" },
-  sidebar: { width: 240, background: "#0f172a", color: "white", padding: 24 },
-  sidebarLogo: { fontSize: 26, marginBottom: 30 },
-  navItem: { padding: "12px 0", color: "#cbd5e1" },
-  content: { flex: 1, padding: 32 },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
-  title: { margin: 0, fontSize: 32 },
-  subtitle: { color: "#64748b" },
-  cards: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 },
-  card: { background: "white", padding: 20, borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
-  cardLabel: { color: "#64748b", fontSize: 14 },
-  cardValue: { fontSize: 32, fontWeight: "bold", marginTop: 8 },
-  panel: { background: "white", padding: 24, borderRadius: 16, marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
-  formGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 },
-  input: { padding: 12, border: "1px solid #cbd5e1", borderRadius: 10 },
-  smallInput: { padding: 8, borderRadius: 8, border: "1px solid #cbd5e1" },
-  primaryButton: { padding: 12, borderRadius: 10, border: "none", background: "#2563eb", color: "white", cursor: "pointer" },
-  secondaryButton: { padding: 10, borderRadius: 10, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" },
-  logout: { padding: 10, borderRadius: 10, border: "none", background: "#0f172a", color: "white" },
-  leadCard: { border: "1px solid #e2e8f0", borderRadius: 14, padding: 16, marginBottom: 12, display: "flex", justifyContent: "space-between", gap: 16 },
-  leadName: { fontSize: 18 },
-  badge: { color: "white", padding: "5px 10px", borderRadius: 999, fontSize: 12, display: "inline-block" },
-  actions: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  whatsappButton: { padding: 10, borderRadius: 10, border: "none", background: "#16a34a", color: "white", cursor: "pointer" },
-  deleteButton: { padding: 10, borderRadius: 10, border: "none", background: "#dc2626", color: "white", cursor: "pointer" },
-  scoreRow: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", padding: "10px 0" },
-  loginPage: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "Arial" },
-  loginCard: { background: "white", padding: 32, borderRadius: 18, width: 360, boxShadow: "0 10px 30px rgba(0,0,0,0.08)" },
-  logo: { margin: 0, fontSize: 34 },
-};
+function GlobalStyles() {
+  return (
+    <style jsx global>{`
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f8fafc;
+      }
+
+      button, select, input {
+        transition: all 0.2s ease;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        opacity: 0.92;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+      }
+
+      input, select {
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+      }
+
+      .app {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        width: 240px;
+        background: #0f172a;
+        color: white;
+        padding: 24px;
+      }
+
+      .sidebar h1 {
+        font-size: 26px;
+        margin-bottom: 30px;
+      }
+
+      .sidebar p {
+        color: #cbd5e1;
+      }
+
+      .content {
+        flex: 1;
+        padding: 32px;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 32px;
+      }
+
+      .header p {
+        color: #64748b;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .card, .panel, .leadCard, .loginCard {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .cardLabel {
+        color: #64748b;
+        font-size: 14px;
+      }
+
+      .cardValue {
+        font-size: 32px;
+        font-weight: bold;
+        margin-top: 8px;
+      }
+
+      .panel {
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+
+      .formGrid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      .leadCard {
+        border: 1px solid #e2e8f0;
+        padding: 16px;
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .leadCard:hover {
+        transform: scale(1.01);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+      }
+
+      .leadName {
+        font-size: 18px;
+      }
+
+      .badge {
+        color: white;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        display: inline-block;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .primaryButton {
+        background: #2563eb;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 10px;
+      }
+
+      .secondaryButton {
+        background: white;
+        border: 1px solid #cbd5e1;
+        padding: 10px;
+        border-radius: 10px;
+      }
+
+      .darkButton {
+        background: #0f172a;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 10px;
+      }
+
+      .whatsappButton {
+        background: #16a34a;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .whatsappButton img {
+        width: 18px;
+        height: 18px;
+      }
+
+      .deleteButton {
+        background: #dc2626;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 10px;
+      }
+
+      .scoreRow {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 10px 0;
+      }
+
+      .loginPage {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loginCard {
+        padding: 32px;
+        width: 360px;
+      }
+
+      .loginCard input {
+        width: 100%;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+      }
+
+      .loginCard button {
+        margin-right: 8px;
+      }
+    `}</style>
+  );
+}
