@@ -51,7 +51,7 @@ function getNextAction(lastContact: string | null) {
 }
 
 function badgeColor(value: string) {
-  if (value.includes("OVERDUE")) return "#dc2626";
+  if (value?.includes("OVERDUE")) return "#dc2626";
   if (value === "Follow Up Today") return "#f97316";
   if (value === "Check Soon") return "#ca8a04";
   if (value === "Up to Date" || value === "Won" || value === "Followed Up") return "#16a34a";
@@ -74,11 +74,20 @@ export default function Home() {
   const [lastContact, setLastContact] = useState("");
   const [status, setStatus] = useState("New");
 
+  const [toast, setToast] = useState("");
+  const [undoLead, setUndoLead] = useState<Lead | null>(null);
+
+  function showToast(message: string) {
+    setToast(message);
+    setTimeout(() => setToast(""), 5000);
+  }
+
   async function signUp() {
     const { error } = await supabase.auth.signUp({
       email: authEmail,
       password: authPassword,
     });
+
     if (error) return alert(error.message);
     alert("Account created. Now log in.");
   }
@@ -88,6 +97,7 @@ export default function Home() {
       email: authEmail,
       password: authPassword,
     });
+
     if (error) return alert(error.message);
   }
 
@@ -133,13 +143,34 @@ export default function Home() {
     setReferenceNumber("");
     setLastContact("");
     setStatus("New");
+
     fetchLeads();
+    showToast("Lead added successfully");
   }
 
-  async function deleteLead(id: string) {
-    const { error } = await supabase.from("leads").delete().eq("id", id);
+  async function deleteLead(lead: Lead) {
+    setUndoLead(lead);
+
+    const { error } = await supabase.from("leads").delete().eq("id", lead.id);
     if (error) return alert("Error deleting lead");
+
     fetchLeads();
+    showToast("Lead deleted — Undo available for 5 seconds");
+
+    setTimeout(() => {
+      setUndoLead(null);
+    }, 5000);
+  }
+
+  async function undoDelete() {
+    if (!undoLead) return;
+
+    const { error } = await supabase.from("leads").insert(undoLead);
+    if (error) return alert("Error restoring lead");
+
+    setUndoLead(null);
+    fetchLeads();
+    showToast("Lead restored");
   }
 
   async function markContacted(id: string) {
@@ -155,7 +186,9 @@ export default function Home() {
       .eq("id", id);
 
     if (error) return alert("Error updating lead");
+
     fetchLeads();
+    showToast("Lead marked contacted");
   }
 
   async function openWhatsApp(lead: Lead) {
@@ -183,6 +216,7 @@ export default function Home() {
     );
 
     fetchLeads();
+    showToast("WhatsApp follow-up opened");
   }
 
   async function updateStatus(id: string, newStatus: string) {
@@ -192,7 +226,9 @@ export default function Home() {
       .eq("id", id);
 
     if (error) return alert("Error updating status");
+
     fetchLeads();
+    showToast("Status updated");
   }
 
   useEffect(() => {
@@ -211,14 +247,16 @@ export default function Home() {
 
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  const followUps = leads.filter(
+    const followUps = leads.filter(
     (l) =>
       l.next_action === "OVERDUE — CALL NOW" ||
       l.next_action === "Follow Up Today"
   );
 
-  const overdue = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
+  const overdue = leads.filter(
+    (l) => l.next_action === "OVERDUE — CALL NOW"
+  ).length;
+
   const won = leads.filter((l) => l.status === "Won").length;
   const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
 
@@ -229,11 +267,26 @@ export default function Home() {
           <h1>LeadFlow</h1>
           <p>Real estate follow-up system</p>
 
-          <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" />
-          <input type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" />
+          <input
+            value={authEmail}
+            onChange={(e) => setAuthEmail(e.target.value)}
+            placeholder="Email"
+          />
 
-          <button className="primaryButton" onClick={logIn}>Log In</button>
-          <button className="secondaryButton" onClick={signUp}>Sign Up</button>
+          <input
+            type="password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            placeholder="Password"
+          />
+
+          <button className="primaryButton" onClick={logIn}>
+            Log In
+          </button>
+
+          <button className="secondaryButton" onClick={signUp}>
+            Sign Up
+          </button>
         </div>
 
         <GlobalStyles />
@@ -257,7 +310,10 @@ export default function Home() {
             <h1>Dashboard</h1>
             <p>Manage leads, follow-ups, and consultant activity.</p>
           </div>
-          <button className="darkButton" onClick={logOut}>Log Out</button>
+
+          <button className="darkButton" onClick={logOut}>
+            Log Out
+          </button>
         </header>
 
         <div className="cards">
@@ -269,31 +325,49 @@ export default function Home() {
 
         <section className="panel">
           <h2>Add Lead</h2>
+
           <div className="formGrid">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
             <input value={consultant} onChange={(e) => setConsultant(e.target.value)} placeholder="Consultant" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
             <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Reference Number" />
             <input type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
+
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
             </select>
-            <button className="primaryButton" onClick={addLead}>Add Lead</button>
+
+            <button className="primaryButton" onClick={addLead}>
+              Add Lead
+            </button>
           </div>
         </section>
 
         <section className="panel">
           <h2>Follow-Up Queue</h2>
+
           {followUps.length === 0 && <p>No urgent leads 🎉</p>}
+
           {followUps.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} updateStatus={updateStatus} markContacted={markContacted} openWhatsApp={openWhatsApp} deleteLead={deleteLead} />
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+            />
           ))}
         </section>
 
         <section className="panel">
           <h2>Consultant Scoreboard</h2>
+
           {consultants.map((person) => {
             const personLeads = leads.filter((l) => l.consultant === person);
+
             return (
               <div className="scoreRow" key={person}>
                 <strong>{person}</strong>
@@ -305,11 +379,31 @@ export default function Home() {
 
         <section className="panel">
           <h2>All Leads</h2>
+
           {leads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} updateStatus={updateStatus} markContacted={markContacted} openWhatsApp={openWhatsApp} deleteLead={deleteLead} />
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+            />
           ))}
         </section>
       </section>
+
+      {toast && (
+        <div className="toast">
+          <span>{toast}</span>
+
+          {undoLead && (
+            <button onClick={undoDelete}>
+              Undo
+            </button>
+          )}
+        </div>
+      )}
 
       <GlobalStyles />
     </main>
@@ -345,17 +439,23 @@ function LeadCard({ lead, updateStatus, markContacted, openWhatsApp, deleteLead 
 
       <div className="actions">
         <select value={lead.status || "New"} onChange={(e) => updateStatus(lead.id, e.target.value)}>
-          {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s}>{s}</option>
+          ))}
         </select>
 
-        <button className="secondaryButton" onClick={() => markContacted(lead.id)}>Mark Contacted</button>
+        <button className="secondaryButton" onClick={() => markContacted(lead.id)}>
+          Mark Contacted
+        </button>
 
         <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
           <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" />
           WhatsApp
         </button>
 
-        <button className="deleteButton" onClick={() => deleteLead(lead.id)}>Delete</button>
+        <button className="deleteButton" onClick={() => deleteLead(lead)}>
+          Delete
+        </button>
       </div>
     </div>
   );
@@ -370,7 +470,7 @@ function GlobalStyles() {
         background: #f8fafc;
       }
 
-      button, select, input {
+      button, input, select {
         transition: all 0.2s ease;
       }
 
@@ -402,11 +502,6 @@ function GlobalStyles() {
         padding: 24px;
       }
 
-      .sidebar h1 {
-        font-size: 26px;
-        margin-bottom: 30px;
-      }
-
       .sidebar p {
         color: #cbd5e1;
       }
@@ -421,15 +516,6 @@ function GlobalStyles() {
         justify-content: space-between;
         align-items: center;
         margin-bottom: 24px;
-      }
-
-      .header h1 {
-        margin: 0;
-        font-size: 32px;
-      }
-
-      .header p {
-        color: #64748b;
       }
 
       .cards {
@@ -556,6 +642,31 @@ function GlobalStyles() {
         justify-content: space-between;
         border-bottom: 1px solid #e2e8f0;
         padding: 10px 0;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #0f172a;
+        color: white;
+        padding: 14px 18px;
+        border-radius: 12px;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        z-index: 999;
+      }
+
+      .toast button {
+        background: #facc15;
+        color: #0f172a;
+        border: none;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-weight: bold;
       }
 
       .loginPage {
