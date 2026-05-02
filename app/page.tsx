@@ -76,6 +76,7 @@ export default function Home() {
 
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
+const [undoSeconds, setUndoSeconds] = useState(0);
 
   function showToast(message: string) {
     setToast(message);
@@ -155,11 +156,20 @@ export default function Home() {
     if (error) return alert("Error deleting lead");
 
     fetchLeads();
-    showToast("Lead deleted — Undo available for 5 seconds");
+    showToast("Lead deleted");
 
-    setTimeout(() => {
+    setUndoSeconds(5);
+
+const countdown = setInterval(() => {
+  setUndoSeconds((prev) => {
+    if (prev <= 1) {
+      clearInterval(countdown);
       setUndoLead(null);
-    }, 5000);
+      return 0;
+    }
+    return prev - 1;
+  });
+}, 1000);
   }
 
   async function undoDelete() {
@@ -399,8 +409,8 @@ export default function Home() {
 
           {undoLead && (
             <button onClick={undoDelete}>
-              Undo
-            </button>
+  Undo ({undoSeconds})
+</button>
           )}
         </div>
       )}
