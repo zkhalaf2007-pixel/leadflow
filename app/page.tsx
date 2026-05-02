@@ -74,6 +74,7 @@ export default function Home() {
   const [lastContact, setLastContact] = useState("");
   const [status, setStatus] = useState("New");
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
@@ -273,12 +274,16 @@ const countdown = setInterval(() => {
   const filteredLeads = leads.filter((lead) => {
   const search = searchTerm.toLowerCase();
 
-  return (
+  const matchesSearch =
     lead.name.toLowerCase().includes(search) ||
     lead.consultant.toLowerCase().includes(search) ||
     (lead.phone || "").toLowerCase().includes(search) ||
-    (lead.reference_number || "").toLowerCase().includes(search)
-  );
+    (lead.reference_number || "").toLowerCase().includes(search);
+
+  const matchesStatus =
+    statusFilter === "All" || lead.status === statusFilter;
+
+  return matchesSearch && matchesStatus;
 });
 
   if (!user) {
@@ -400,12 +405,25 @@ const countdown = setInterval(() => {
 
         <section className="panel">
           <h2>All Leads</h2>
-          <input
-  placeholder="Search by name, phone, consultant, reference..."
-  value={searchTerm}
-  onChange={(e) => setSearchTerm(e.target.value)}
-  style={{ marginBottom: 12, width: "100%" }}
-/>
+
+<div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+  <input
+    placeholder="Search..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    style={{ flex: 1 }}
+  />
+
+  <select
+    value={statusFilter}
+    onChange={(e) => setStatusFilter(e.target.value)}
+  >
+    <option value="All">All</option>
+    {STATUS_OPTIONS.map((s) => (
+      <option key={s} value={s}>{s}</option>
+    ))}
+  </select>
+</div>
 
           {filteredLeads.map((lead) => (
             <LeadCard
