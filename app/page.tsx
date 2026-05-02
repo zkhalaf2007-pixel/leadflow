@@ -73,6 +73,7 @@ export default function Home() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [lastContact, setLastContact] = useState("");
   const [status, setStatus] = useState("New");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
@@ -269,6 +270,16 @@ const countdown = setInterval(() => {
 
   const won = leads.filter((l) => l.status === "Won").length;
   const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
+  const filteredLeads = leads.filter((lead) => {
+  const search = searchTerm.toLowerCase();
+
+  return (
+    lead.name.toLowerCase().includes(search) ||
+    lead.consultant.toLowerCase().includes(search) ||
+    (lead.phone || "").toLowerCase().includes(search) ||
+    (lead.reference_number || "").toLowerCase().includes(search)
+  );
+});
 
   if (!user) {
     return (
@@ -389,8 +400,14 @@ const countdown = setInterval(() => {
 
         <section className="panel">
           <h2>All Leads</h2>
+          <input
+  placeholder="Search by name, phone, consultant, reference..."
+  value={searchTerm}
+  onChange={(e) => setSearchTerm(e.target.value)}
+  style={{ marginBottom: 12, width: "100%" }}
+/>
 
-          {leads.map((lead) => (
+          {filteredLeads.map((lead) => (
             <LeadCard
               key={lead.id}
               lead={lead}
