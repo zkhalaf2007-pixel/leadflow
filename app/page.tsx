@@ -30,6 +30,11 @@ const STATUS_OPTIONS = [
   "Lost",
 ];
 
+const CONSULTANT_OPTIONS = [
+  "Consultant 1",
+  "Consultant 2",
+  "Consultant 3",
+];
 function getTodayDate() {
   return new Date().toISOString().split("T")[0];
 }
@@ -354,7 +359,15 @@ const countdown = setInterval(() => {
 
           <div className="formGrid">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
-            <input value={consultant} onChange={(e) => setConsultant(e.target.value)} placeholder="Consultant" />
+            <select
+  value={consultant}
+  onChange={(e) => setConsultant(e.target.value)}
+>
+  <option value="">Select Consultant</option>
+  {CONSULTANT_OPTIONS.map((c) => (
+    <option key={c} value={c}>{c}</option>
+  ))}
+</select>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
             <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Reference Number" />
             <input type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
