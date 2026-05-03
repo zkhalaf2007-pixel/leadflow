@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient, User } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
 type Lead = {
@@ -30,11 +30,7 @@ const STATUS_OPTIONS = [
   "Lost",
 ];
 
-const CONSULTANT_OPTIONS = [
-  "Consultant 1",
-  "Consultant 2",
-  "Consultant 3",
-];
+const CONSULTANT_OPTIONS = ["Consultant 1", "Consultant 2", "Consultant 3"];
 function getTodayDate() {
   return new Date().toISOString().split("T")[0];
 }
@@ -46,7 +42,7 @@ function getNextAction(lastContact: string | null) {
   const last = new Date(lastContact);
 
   const diffDays = Math.floor(
-    (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
+    (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24),
   );
 
   if (diffDays >= 3) return "OVERDUE — CALL NOW";
@@ -59,7 +55,8 @@ function badgeColor(value: string) {
   if (value?.includes("OVERDUE")) return "#dc2626";
   if (value === "Follow Up Today") return "#f97316";
   if (value === "Check Soon") return "#ca8a04";
-  if (value === "Up to Date" || value === "Won" || value === "Followed Up") return "#16a34a";
+  if (value === "Up to Date" || value === "Won" || value === "Followed Up")
+    return "#16a34a";
   if (value === "Lost") return "#dc2626";
   if (value === "Viewing Scheduled") return "#2563eb";
   if (value === "Offer Made") return "#7c3aed";
@@ -68,6 +65,8 @@ function badgeColor(value: string) {
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [consultants, setConsultants] = useState<string[]>([]);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
 
@@ -83,12 +82,23 @@ export default function Home() {
 
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
-const [undoSeconds, setUndoSeconds] = useState(0);
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
+  const [undoSeconds, setUndoSeconds] = useState(0);
+  const [newConsultantName, setNewConsultantName] = useState("");
+  const [consultantToDelete, setConsultantToDelete] = useState("");
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   function showToast(message: string) {
-    setToast(message);
-    setTimeout(() => setToast(""), 5000);
-  }
+  const audio = new Audio("/pop.mp3");
+  audio.volume = 0.25;
+  audio.play().catch(() => {});
+
+  setToast(message);
+
+  setTimeout(() => {
+    setToast("");
+  }, 5000);
+}
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({
@@ -115,6 +125,75 @@ const [undoSeconds, setUndoSeconds] = useState(0);
     setLeads([]);
   }
 
+  async function fetchRole(userId: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error(error);
+      setRole(null);
+      return;
+    }
+
+    setRole(data.role);
+  }
+
+  async function fetchConsultants() {
+    const { data, error } = await supabase
+      .from("consultants")
+      .select("name")
+      .eq("active", true)
+      .order("name");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setConsultants(data.map((c) => c.name));
+  }
+
+  async function addConsultant() {
+    if (!newConsultantName.trim()) {
+      alert("Please enter a consultant name.");
+      return;
+    }
+    const cleanName = newConsultantName.trim();
+    const exists = consultants.some(
+      (c) => c.toLowerCase() === cleanName.toLowerCase(),
+    );
+
+    if (exists) {
+      alert("This consultant already exists.");
+      return;
+    }
+
+    const { error } = await supabase.from("consultants").insert({
+      name: cleanName,
+      active: true,
+    });
+
+    if (error) return alert("Error adding consultant");
+
+    setNewConsultantName("");
+    fetchConsultants();
+    showToast("Consultant added");
+  }
+
+  async function deleteConsultant(name: string) {
+    const { error } = await supabase
+      .from("consultants")
+      .update({ active: false })
+      .eq("name", name);
+
+    if (error) return alert("Error deleting consultant");
+
+    fetchConsultants();
+    showToast("Consultant removed");
+  }
   async function fetchLeads() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -130,17 +209,23 @@ const [undoSeconds, setUndoSeconds] = useState(0);
   }
 
   async function addLead() {
-    if (!name.trim() || !consultant.trim() || !user) return;
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim();
+    const cleanRef = referenceNumber.trim();
+    if (!cleanName || !consultant || !cleanPhone || !cleanRef) {
+      alert("Please fill in all required fields before adding a lead.");
+      return;
+    }
 
     const { error } = await supabase.from("leads").insert({
-      name,
+      name: cleanName,
       consultant,
-      phone,
-      reference_number: referenceNumber,
+      phone: cleanPhone,
+      reference_number: cleanRef,
       last_contact: lastContact || null,
       next_action: getNextAction(lastContact || null),
       status,
-      user_id: user.id,
+      user_id: user!.id,
     });
 
     if (error) return alert("Error adding lead");
@@ -167,16 +252,21 @@ const [undoSeconds, setUndoSeconds] = useState(0);
 
     setUndoSeconds(5);
 
-const countdown = setInterval(() => {
-  setUndoSeconds((prev) => {
-    if (prev <= 1) {
-      clearInterval(countdown);
-      setUndoLead(null);
-      return 0;
+    if (undoTimerRef.current) {
+      clearInterval(undoTimerRef.current);
     }
-    return prev - 1;
-  });
-}, 1000);
+    undoTimerRef.current = setInterval(() => {
+      setUndoSeconds((prev) => {
+        if (prev <= 1) {
+          if (undoTimerRef.current) {
+            clearInterval(undoTimerRef.current);
+          }
+          setUndoLead(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   }
 
   async function undoDelete() {
@@ -229,7 +319,7 @@ const countdown = setInterval(() => {
     const cleanPhone = lead.phone.replace(/\D/g, "");
     window.open(
       `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`,
-      "_blank"
+      "_blank",
     );
 
     fetchLeads();
@@ -251,51 +341,61 @@ const countdown = setInterval(() => {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
-      if (data.user) fetchLeads();
+      if (data.user) {
+        fetchRole(data.user.id);
+        fetchConsultants();
+        fetchLeads();
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user || null);
-        if (session?.user) fetchLeads();
-        else setLeads([]);
-      }
+        if (session?.user) {
+          fetchRole(session.user.id);
+          fetchConsultants();
+          fetchLeads();
+        } else {
+          setRole(null);
+          setLeads([]);
+        }
+      },
     );
 
     return () => listener.subscription.unsubscribe();
   }, []);
-    const followUps = leads.filter(
+  const followUps = leads.filter(
     (l) =>
       l.next_action === "OVERDUE — CALL NOW" ||
-      l.next_action === "Follow Up Today"
+      l.next_action === "Follow Up Today",
   );
 
   const overdue = leads.filter(
-    (l) => l.next_action === "OVERDUE — CALL NOW"
+    (l) => l.next_action === "OVERDUE — CALL NOW",
   ).length;
 
   const won = leads.filter((l) => l.status === "Won").length;
-  const consultants = Array.from(new Set(leads.map((l) => l.consultant)));
+  const consultantNames = Array.from(new Set(leads.map((l) => l.consultant)));
   const filteredLeads = leads.filter((lead) => {
-  const search = searchTerm.toLowerCase();
+    const search = searchTerm.toLowerCase();
 
-  const matchesSearch =
-    lead.name.toLowerCase().includes(search) ||
-    lead.consultant.toLowerCase().includes(search) ||
-    (lead.phone || "").toLowerCase().includes(search) ||
-    (lead.reference_number || "").toLowerCase().includes(search);
+    const matchesSearch =
+      lead.name.toLowerCase().includes(search) ||
+      (lead.phone || "").toLowerCase().includes(search) ||
+      (lead.reference_number || "").toLowerCase().includes(search);
 
-  const matchesStatus =
-    statusFilter === "All" || lead.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "All" || lead.status === statusFilter;
 
-  return matchesSearch && matchesStatus;
-});
+    return matchesSearch && matchesStatus;
+  });
 
   if (!user) {
     return (
       <main className="loginPage">
         <div className="loginCard">
           <h1>LeadFlow</h1>
+          <p>Role: {role || "loading..."}</p>
           <p>Real estate follow-up system</p>
 
           <input
@@ -349,42 +449,205 @@ const countdown = setInterval(() => {
 
         <div className="cards">
           <Card label="Total Leads" value={leads.length} />
-          <Card label="Urgent Follow-Ups" value={followUps.length} color="#f97316" />
+          <Card
+            label="Urgent Follow-Ups"
+            value={followUps.length}
+            color="#f97316"
+          />
           <Card label="Overdue" value={overdue} color="#dc2626" />
           <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
 
-        <section className="panel">
+        <section className="panel" style={{ marginBottom: "24px" }}>
+          {role === "manager" && (
+            <div style={{ marginBottom: "28px" }}>
+              <h2 style={{ marginBottom: "16px" }}>Manage Consultants</h2>
+
+              <div
+                style={{ display: "flex", gap: "12px", marginBottom: "22px" }}
+              >
+                <input
+                  type="text"
+                  placeholder="New consultant name"
+                  value={newConsultantName}
+                  onChange={(e) => setNewConsultantName(e.target.value)}
+                />
+
+                <button
+                  onClick={addConsultant}
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "8px 14px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Add Consultant
+                </button>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Remove Existing Consultant
+                </label>
+
+                <div
+                  style={{ display: "flex", gap: "10px", alignItems: "center" }}
+                >
+                  <select
+                    value={consultantToDelete}
+                    onChange={(e) => setConsultantToDelete(e.target.value)}
+                  >
+                    <option value="">Select consultant...</option>
+                    {consultants.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+  onClick={() => deleteConsultant(consultantToDelete)}
+  style={{
+    backgroundColor: "#dc2626",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    padding: "8px 12px",
+    fontWeight: 600,
+    cursor: "pointer",
+  }}
+>
+  Delete
+</button>
+                </div>
+              </div>
+            </div>
+          )}
           <h2>Add Lead</h2>
 
-          <div className="formGrid">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Client name" />
-            <select
-  value={consultant}
-  onChange={(e) => setConsultant(e.target.value)}
+<div
+  className="formGrid"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "12px",
+  }}
 >
-  <option value="">Select Consultant</option>
-  {CONSULTANT_OPTIONS.map((c) => (
-    <option key={c} value={c}>{c}</option>
-  ))}
-</select>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone e.g. 97450123456" />
-            <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="Reference Number" />
-            <input type="date" value={lastContact} onChange={(e) => setLastContact(e.target.value)} />
+  <input
+    type="text"
+    placeholder="Client name"
+    value={name}
+    onChange={(e) => setName(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  />
 
-            <select value={status} onChange={(e) => setStatus(e.target.value)}>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
+  <select
+    value={consultant}
+    onChange={(e) => setConsultant(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  >
+    <option value="">Select Consultant</option>
+    {consultants.map((c) => (
+      <option key={c} value={c}>
+        {c}
+      </option>
+    ))}
+  </select>
 
-            <button className="primaryButton" onClick={addLead}>
-              Add Lead
-            </button>
-          </div>
+  <input
+    type="text"
+    placeholder="Phone number"
+    value={phone}
+    onChange={(e) => setPhone(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  />
+
+  <input
+    type="text"
+    placeholder="Reference number"
+    value={referenceNumber}
+    onChange={(e) => setReferenceNumber(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  />
+
+  <input
+    type="date"
+    value={lastContact}
+    onChange={(e) => setLastContact(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  />
+
+  <select
+    value={status}
+    onChange={(e) => setStatus(e.target.value)}
+    style={{
+      padding: "8px",
+      borderRadius: "6px",
+      border: "1px solid #ccc",
+      width: "100%",
+    }}
+  >
+    {STATUS_OPTIONS.map((s) => (
+      <option key={s} value={s}>
+        {s}
+      </option>
+    ))}
+  </select>
+</div>
+
+            <button
+  onClick={addLead}
+  style={{
+    backgroundColor: "#16a34a",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    padding: "10px",
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: "10px",
+  }}
+>
+  Add Lead
+</button>
         </section>
 
-        <section className="panel">
+        <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>Follow-Up Queue</h2>
 
           {followUps.length === 0 && <p>No urgent leads 🎉</p>}
@@ -401,10 +664,10 @@ const countdown = setInterval(() => {
           ))}
         </section>
 
-        <section className="panel">
+        <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>Consultant Scoreboard</h2>
 
-          {consultants.map((person) => {
+          {consultantNames.map((person) => {
             const personLeads = leads.filter((l) => l.consultant === person);
 
             return (
@@ -416,27 +679,29 @@ const countdown = setInterval(() => {
           })}
         </section>
 
-        <section className="panel">
+        <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>All Leads</h2>
 
-<div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-  <input
-    placeholder="Search..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    style={{ flex: 1 }}
-  />
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ flex: 1 }}
+            />
 
-  <select
-    value={statusFilter}
-    onChange={(e) => setStatusFilter(e.target.value)}
-  >
-    <option value="All">All</option>
-    {STATUS_OPTIONS.map((s) => (
-      <option key={s} value={s}>{s}</option>
-    ))}
-  </select>
-</div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {filteredLeads.map((lead) => (
             <LeadCard
@@ -452,32 +717,75 @@ const countdown = setInterval(() => {
       </section>
 
       {toast && (
-        <div className="toast">
-          <span>{toast}</span>
+  <div className="toast">
+    <span>{toast}</span>
 
-          {undoLead && (
-            <button onClick={undoDelete}>
-  Undo ({undoSeconds})
-</button>
-          )}
-        </div>
+    <div>
+      {undoLead && (
+        <button onClick={undoDelete}>Undo ({undoSeconds})</button>
       )}
+
+      <button
+  onClick={() => setToast("")}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)";
+    e.currentTarget.style.color = "white";
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.backgroundColor = "transparent";
+    e.currentTarget.style.color = "#e5e7eb";
+  }}
+  style={{
+    backgroundColor: "transparent",
+    color: "#e5e7eb",
+    border: "none",
+    fontSize: "18px",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "0 6px",
+    marginLeft: "6px",
+    borderRadius: "4px",
+    lineHeight: 1,
+    transition: "background-color 0.15s ease, color 0.15s ease",
+  }}
+>
+  ×
+</button>
+    </div>
+  </div>
+)}
 
       <GlobalStyles />
     </main>
   );
 }
 
-function Card({ label, value, color = "#0f172a" }: { label: string; value: number; color?: string }) {
+function Card({
+  label,
+  value,
+  color = "#0f172a",
+}: {
+  label: string;
+  value: number;
+  color?: string;
+}) {
   return (
     <div className="card">
       <div className="cardLabel">{label}</div>
-      <div className="cardValue" style={{ color }}>{value}</div>
+      <div className="cardValue" style={{ color }}>
+        {value}
+      </div>
     </div>
   );
 }
 
-function LeadCard({ lead, updateStatus, markContacted, openWhatsApp, deleteLead }: any) {
+function LeadCard({
+  lead,
+  updateStatus,
+  markContacted,
+  openWhatsApp,
+  deleteLead,
+}: any) {
   return (
     <div className="leadCard">
       <div>
@@ -486,28 +794,43 @@ function LeadCard({ lead, updateStatus, markContacted, openWhatsApp, deleteLead 
         <p>Phone: {lead.phone || "No phone"}</p>
         <p>Ref: {lead.reference_number || "N/A"}</p>
 
-        <span className="badge" style={{ background: badgeColor(lead.next_action) }}>
+        <span
+          className="badge"
+          style={{ background: badgeColor(lead.next_action) }}
+        >
           {lead.next_action}
         </span>
 
-        <span className="badge" style={{ background: badgeColor(lead.status), marginLeft: 8 }}>
+        <span
+          className="badge"
+          style={{ background: badgeColor(lead.status), marginLeft: 8 }}
+        >
           {lead.status}
         </span>
       </div>
 
       <div className="actions">
-        <select value={lead.status || "New"} onChange={(e) => updateStatus(lead.id, e.target.value)}>
+        <select
+          value={lead.status || "New"}
+          onChange={(e) => updateStatus(lead.id, e.target.value)}
+        >
           {STATUS_OPTIONS.map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>
 
-        <button className="secondaryButton" onClick={() => markContacted(lead.id)}>
+        <button
+          className="secondaryButton"
+          onClick={() => markContacted(lead.id)}
+        >
           Mark Contacted
         </button>
 
         <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" />
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+            alt="WhatsApp"
+          />
           WhatsApp
         </button>
 
@@ -528,7 +851,9 @@ function GlobalStyles() {
         background: #f8fafc;
       }
 
-      button, input, select {
+      button,
+      input,
+      select {
         transition: all 0.2s ease;
       }
 
@@ -539,10 +864,11 @@ function GlobalStyles() {
       button:hover {
         transform: translateY(-1px);
         opacity: 0.92;
-        box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
       }
 
-      input, select {
+      input,
+      select {
         padding: 12px;
         border: 1px solid #cbd5e1;
         border-radius: 10px;
@@ -583,10 +909,13 @@ function GlobalStyles() {
         margin-bottom: 24px;
       }
 
-      .card, .panel, .leadCard, .loginCard {
+      .card,
+      .panel,
+      .leadCard,
+      .loginCard {
         background: white;
         border-radius: 16px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
       }
 
       .card {
@@ -626,7 +955,7 @@ function GlobalStyles() {
 
       .leadCard:hover {
         transform: scale(1.01);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
       }
 
       .leadName {
@@ -714,7 +1043,7 @@ function GlobalStyles() {
         display: flex;
         gap: 14px;
         align-items: center;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
         z-index: 999;
       }
 
