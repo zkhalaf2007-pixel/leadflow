@@ -399,6 +399,42 @@ export default function Home() {
   }
 }
 
+async function updateLeadPhone(id: string, newPhone: string) {
+  setLeads((prev) =>
+    prev.map((lead) =>
+      lead.id === id ? { ...lead, phone: newPhone } : lead
+    )
+  );
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ phone: newPhone })
+    .eq("id", id);
+
+  if (error) {
+    alert("Error updating lead phone");
+    fetchLeads();
+  }
+}
+
+async function updateLeadConsultant(id: string, newConsultant: string) {
+  setLeads((prev) =>
+    prev.map((lead) =>
+      lead.id === id ? { ...lead, consultant: newConsultant } : lead
+    )
+  );
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ consultant: newConsultant })
+    .eq("id", id);
+
+  if (error) {
+    alert("Error updating consultant");
+    fetchLeads();
+  }
+}
+
   async function undoDelete() {
     stopUndoSequence();
 
@@ -1074,6 +1110,8 @@ export default function Home() {
   openWhatsApp={openWhatsApp}
   deleteLead={deleteLead}
   updateLeadName={updateLeadName}
+  updateLeadPhone={updateLeadPhone}
+updateLeadConsultant={updateLeadConsultant}
 />
           ))}
         </section>
@@ -1126,6 +1164,8 @@ export default function Home() {
               openWhatsApp={openWhatsApp}
               deleteLead={deleteLead}
               updateLeadName={updateLeadName}
+              updateLeadPhone={updateLeadPhone}
+updateLeadConsultant={updateLeadConsultant}
             />
           ))}
         </section>
@@ -1283,6 +1323,8 @@ function LeadCard({
   openWhatsApp,
   deleteLead,
   updateLeadName,
+  updateLeadPhone,
+updateLeadConsultant,
 }: {
   lead: Lead;
   updateStatus: (id: string, status: string) => void;
@@ -1290,9 +1332,13 @@ function LeadCard({
   openWhatsApp: (lead: Lead) => void;
   deleteLead: (lead: Lead) => void;
   updateLeadName: (id: string, newName: string) => void;
+  updateLeadPhone: (id: string, newPhone: string) => void;
+updateLeadConsultant: (id: string, newConsultant: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
 const [editName, setEditName] = useState(lead.name);
+const [editPhone, setEditPhone] = useState(lead.phone || "");
+const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
   return (
     <div className="leadCard">
       <div>
@@ -1305,11 +1351,27 @@ const [editName, setEditName] = useState(lead.name);
       autoFocus
     />
 
+<input
+  value={editPhone}
+  onChange={(e) => setEditPhone(e.target.value)}
+  className="editInput"
+  placeholder="Phone"
+/>
+
+<input
+  value={editConsultant}
+  onChange={(e) => setEditConsultant(e.target.value)}
+  className="editInput"
+  placeholder="Consultant"
+/>
+
     <div className="editActions">
       <button
         className="secondaryButton"
         onClick={() => {
   updateLeadName(lead.id, editName);
+  updateLeadPhone(lead.id, editPhone);
+  updateLeadConsultant(lead.id, editConsultant);
   setIsEditing(false);
 }}
       >
@@ -1375,7 +1437,9 @@ const [editName, setEditName] = useState(lead.name);
   className="secondaryButton"
   onClick={() => {
     setEditName(lead.name);
-    setIsEditing(true);
+setEditPhone(lead.phone || "");
+setEditConsultant(lead.consultant || "");
+setIsEditing(true);
   }}
 >
   Edit
