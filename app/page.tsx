@@ -66,9 +66,31 @@ function badgeColor(value: string) {
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [selectedConsultant, setSelectedConsultant] = useState<string>("All");
   const [consultants, setConsultants] = useState<string[]>([]);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const popSoundRef = useRef<HTMLAudioElement | null>(null);
+  const countdownSoundRef = useRef<HTMLAudioElement | null>(null);
+  const finalSoundRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    popSoundRef.current = new Audio("/pop.mp3");
+    countdownSoundRef.current = new Audio("/countdown-pop.mp3");
+    finalSoundRef.current = new Audio("/final-droop-pop.mp3");
+  }, []);
+  function playSound(
+    soundRef: React.RefObject<HTMLAudioElement | null>,
+    options?: { volume?: number; playbackRate?: number },
+  ) {
+    const baseSound = soundRef.current;
+    if (!baseSound) return;
+
+    const sound = baseSound.cloneNode(true) as HTMLAudioElement;
+    sound.volume = options?.volume ?? 1;
+    sound.playbackRate = options?.playbackRate ?? 1;
+    sound.currentTime = 0;
+    sound.play().catch(() => {});
+  }
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
@@ -83,22 +105,123 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
+  const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
   const [consultantToDelete, setConsultantToDelete] = useState("");
-  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const undoRunRef = useRef(0);
+  const toastClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const undoStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const finalPlayedRef = useRef(false);
+  function stopUndoSequence() {
+    undoRunRef.current += 1;
+
+    if (toastTimerRef.current) {
+      clearInterval(toastTimerRef.current);
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+
+    if (toastClearTimeoutRef.current) {
+      clearTimeout(toastClearTimeoutRef.current);
+      toastClearTimeoutRef.current = null;
+    }
+
+    if (undoStartTimeoutRef.current) {
+      clearTimeout(undoStartTimeoutRef.current);
+      undoStartTimeoutRef.current = null;
+    }
+
+    if (popSoundRef.current) {
+      popSoundRef.current.pause();
+      popSoundRef.current.currentTime = 0;
+    }
+
+    if (countdownSoundRef.current) {
+      countdownSoundRef.current.pause();
+      countdownSoundRef.current.currentTime = 0;
+    }
+
+    if (finalSoundRef.current) {
+      finalSoundRef.current.pause();
+      finalSoundRef.current.currentTime = 0;
+    }
+
+    setUndoSeconds(0);
+  }
 
   function showToast(message: string) {
-  const audio = new Audio("/pop.mp3");
-  audio.volume = 0.25;
-  audio.play().catch(() => {});
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      clearInterval(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
 
-  setToast(message);
+    setToast(message);
 
-  setTimeout(() => {
-    setToast("");
-  }, 5000);
-}
+    playSound(popSoundRef, { volume: 1 });
+
+    toastTimerRef.current = setTimeout(() => {
+      setToast("");
+      setUndoLead(null);
+      setUndoSeconds(0);
+    }, 5000);
+  }
+
+  function showUndoToast(message: string) {
+    stopUndoSequence();
+
+    const runId = undoRunRef.current;
+
+    if (toastTimerRef.current) {
+      clearInterval(toastTimerRef.current);
+    }
+
+    if (toastClearTimeoutRef.current) {
+      clearTimeout(toastClearTimeoutRef.current);
+    }
+
+    setToast(message);
+    setUndoSeconds(5);
+    playSound(popSoundRef, { volume: 1 });
+    finalPlayedRef.current = false;
+
+    let secondsLeft = 5;
+
+    toastTimerRef.current = setInterval(() => {
+      secondsLeft -= 1;
+
+      setUndoSeconds(secondsLeft);
+
+      if (secondsLeft > 0) {
+        playSound(countdownSoundRef, {
+          volume: 0.04,
+          playbackRate: 1,
+        });
+      }
+
+      if (secondsLeft <= 0) {
+        clearInterval(toastTimerRef.current!);
+        toastTimerRef.current = null;
+
+        if (!finalPlayedRef.current) {
+          finalPlayedRef.current = true;
+
+          playSound(finalSoundRef, {
+            volume: 0.07,
+            playbackRate: 0.75,
+          });
+        }
+
+        setTimeout(() => {
+          setToast("");
+          setUndoLead(null);
+          setUndoSeconds(0);
+        }, 700);
+      }
+    }, 1000);
+  }
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({
@@ -126,19 +249,26 @@ export default function Home() {
   }
 
   async function fetchRole(userId: string) {
+    console.log("Fetching role for user:", userId);
     const { data, error } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, consultant_name")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
+
+    console.log("Profile result:", data, error);
 
     if (error) {
-      console.error(error);
-      setRole(null);
+      console.error("Error fetching role:", error);
       return;
     }
 
-    setRole(data.role);
+    if (data) {
+      setRole(data.role);
+      setConsultant(data.consultant_name || "");
+    } else {
+      console.warn("No profile found for user");
+    }
   }
 
   async function fetchConsultants() {
@@ -248,34 +378,37 @@ export default function Home() {
     if (error) return alert("Error deleting lead");
 
     fetchLeads();
-    showToast("Lead deleted");
-
-    setUndoSeconds(5);
-
-    if (undoTimerRef.current) {
-      clearInterval(undoTimerRef.current);
-    }
-    undoTimerRef.current = setInterval(() => {
-      setUndoSeconds((prev) => {
-        if (prev <= 1) {
-          if (undoTimerRef.current) {
-            clearInterval(undoTimerRef.current);
-          }
-          setUndoLead(null);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    showUndoToast("Lead deleted");
   }
 
+  async function updateLeadName(id: string, newName: string) {
+  setLeads((prev) =>
+    prev.map((lead) =>
+      lead.id === id ? { ...lead, name: newName } : lead
+    )
+  );
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ name: newName })
+    .eq("id", id);
+
+  if (error) {
+    alert("Error updating lead name");
+    fetchLeads();
+  }
+}
+
   async function undoDelete() {
+    stopUndoSequence();
+
     if (!undoLead) return;
 
     const { error } = await supabase.from("leads").insert(undoLead);
     if (error) return alert("Error restoring lead");
 
     setUndoLead(null);
+    setUndoSeconds(0);
     fetchLeads();
     showToast("Lead restored");
   }
@@ -299,7 +432,8 @@ export default function Home() {
   }
 
   async function openWhatsApp(lead: Lead) {
-    if (!lead.phone) {
+  const phone = lead.phone;
+    if (!phone) {
       alert("No phone number saved for this lead");
       return;
     }
@@ -316,7 +450,7 @@ export default function Home() {
       })
       .eq("id", lead.id);
 
-    const cleanPhone = lead.phone.replace(/\D/g, "");
+    const cleanPhone = phone.replace(/\D/g, "");
     window.open(
       `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`,
       "_blank",
@@ -376,32 +510,75 @@ export default function Home() {
 
   const won = leads.filter((l) => l.status === "Won").length;
   const consultantNames = Array.from(new Set(leads.map((l) => l.consultant)));
-  const filteredLeads = leads.filter((lead) => {
-    const search = searchTerm.toLowerCase();
+  const consultantStats = consultantNames.map((name) => {
+    const consultantLeads = leads.filter((lead) => lead.consultant === name);
 
-    const matchesSearch =
-      lead.name.toLowerCase().includes(search) ||
-      (lead.phone || "").toLowerCase().includes(search) ||
-      (lead.reference_number || "").toLowerCase().includes(search);
-
-    const matchesStatus =
-      statusFilter === "All" || lead.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
+    return {
+      name,
+      total: consultantLeads.length,
+      followUps: consultantLeads.filter(
+        (lead) =>
+          lead.next_action === "OVERDUE — CALL NOW" ||
+          lead.next_action === "Follow Up Today",
+      ).length,
+      overdue: consultantLeads.filter(
+        (lead) => lead.next_action === "OVERDUE — CALL NOW",
+      ).length,
+      won: consultantLeads.filter((lead) => lead.status === "Won").length,
+    };
   });
+  const filteredLeads = leads
+    .filter((lead) => {
+      // 🔐 ROLE FILTER (THIS IS THE NEW PART)
+      if (role === "consultant") {
+        return lead.consultant === consultant;
+      }
+
+      if (selectedConsultant !== "All") {
+        return lead.consultant === selectedConsultant;
+      }
+
+      return true; // manager sees all
+    })
+    .filter((lead) => {
+      // 🔍 existing search filter
+      const matchesSearch =
+        lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (lead.phone || "").includes(searchTerm);
+
+      const matchesStatus =
+        statusFilter === "All" || lead.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
 
   if (!user) {
     return (
       <main className="loginPage">
         <div className="loginCard">
-          <h1>LeadFlow</h1>
-          <p>Role: {role || "loading..."}</p>
-          <p>Real estate follow-up system</p>
+          <h1 style={{ marginBottom: "8px" }}>LeadFlow</h1>
+
+          <p
+            style={{
+              color: "#64748b",
+              fontSize: "14px",
+              marginBottom: "20px",
+            }}
+          >
+            Real estate follow-up system
+          </p>
 
           <input
             value={authEmail}
             onChange={(e) => setAuthEmail(e.target.value)}
             placeholder="Email"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              marginBottom: "10px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+            }}
           />
 
           <input
@@ -411,11 +588,35 @@ export default function Home() {
             placeholder="Password"
           />
 
-          <button className="primaryButton" onClick={logIn}>
+          <button
+            onClick={logIn}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "none",
+              backgroundColor: "#4f46e5",
+              color: "white",
+              fontWeight: 600,
+              cursor: "pointer",
+              marginBottom: "8px",
+            }}
+          >
             Log In
           </button>
 
-          <button className="secondaryButton" onClick={signUp}>
+          <button
+            onClick={signUp}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+              backgroundColor: "white",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
             Sign Up
           </button>
         </div>
@@ -425,20 +626,88 @@ export default function Home() {
     );
   }
 
+  const thLeft = {
+    textAlign: "left" as const,
+    padding: "12px",
+    fontWeight: 600,
+    color: "#475569",
+    borderBottom: "1px solid #e2e8f0",
+  };
+
+  const thCenter = {
+    textAlign: "center" as const,
+    padding: "12px",
+    fontWeight: 600,
+    color: "#475569",
+    borderBottom: "1px solid #e2e8f0",
+  };
+
+  const tdLeft = {
+    textAlign: "left" as const,
+    padding: "12px",
+    borderBottom: "1px solid #f1f5f9",
+  };
+
+  const tdCenter = {
+    textAlign: "center" as const,
+    padding: "12px",
+    borderBottom: "1px solid #f1f5f9",
+    fontWeight: 500,
+  };
+
+  if (!user) {
+    return <div>Loading user...</div>;
+  }
+
+  if (!role) {
+    return <div>Loading role...</div>;
+  }
+
   return (
     <main className="app">
       <aside className="sidebar">
-        <h1>LeadFlow</h1>
-        <p>Dashboard</p>
-        <p>Follow-Ups</p>
-        <p>Leads</p>
-        <p>Consultants</p>
+        <h1 className="brandTitle">LeadFlow</h1>
+
+        <div className="navList">
+          <div className="navText active">Dashboard</div>
+          <div className="navText">Follow-Ups</div>
+          <div className="navText">Leads</div>
+          <div className="navText">Consultants</div>
+        </div>
       </aside>
 
       <section className="content">
         <header className="header">
           <div>
-            <h1>Dashboard</h1>
+            <h1 className="pageTitle">Dashboard</h1>
+            {role === "manager" && (
+              <div className="fieldGroup">
+                <label className="mutedLabel">Manager View</label>
+
+                <select
+                  value={selectedConsultant}
+                  onChange={(e) => setSelectedConsultant(e.target.value)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid #d1d5db",
+                    backgroundColor: "#f9fafb",
+                    fontSize: "14px",
+                    minWidth: "220px",
+                    outline: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="All">All Consultants</option>
+                  {consultantNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <p>Logged in as: {role}</p>
             <p>Manage leads, follow-ups, and consultant activity.</p>
           </div>
 
@@ -458,31 +727,125 @@ export default function Home() {
           <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
 
-        <section className="panel" style={{ marginBottom: "24px" }}>
+        {role === "manager" && (
+          <div className="panel" style={{ marginTop: "24px", padding: "24px" }}>
+            <h2 className="sectionTitle">Team Performance</h2>
+
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "separate",
+                borderSpacing: "0",
+                fontSize: "14px",
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: "#f8fafc" }}>
+                  <th style={thLeft}>Consultant</th>
+                  <th style={thCenter}>Total Leads</th>
+                  <th style={thCenter}>Follow-Ups</th>
+                  <th style={thCenter}>Overdue</th>
+                  <th style={thCenter}>Won Deals</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {consultantStats.map((stat, index) => (
+                  <tr
+                    key={stat.name}
+                    onClick={() =>
+                      setSelectedConsultant(
+                        selectedConsultant === stat.name ? "All" : stat.name,
+                      )
+                    }
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f1f5f9";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        selectedConsultant === stat.name
+                          ? "#eef2ff"
+                          : index % 2 === 0
+                            ? "#ffffff"
+                            : "#f9fafb";
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      backgroundColor:
+                        selectedConsultant === stat.name
+                          ? "#eef2ff"
+                          : index % 2 === 0
+                            ? "#ffffff"
+                            : "#f9fafb",
+                      transition: "background-color 0.15s ease",
+                    }}
+                  >
+                    <td style={tdLeft}>{stat.name}</td>
+                    <td style={tdCenter}>{stat.total}</td>
+                    <td style={tdCenter}>{stat.followUps}</td>
+                    <td style={tdCenter}>{stat.overdue}</td>
+                    <td style={tdCenter}>{stat.won}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <section
+          className="panel"
+          style={{
+            marginBottom: "28px",
+            padding: "24px",
+            borderRadius: "16px",
+            backgroundColor: "#ffffff",
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+            border: "1px solid #eef2f7",
+          }}
+        >
           {role === "manager" && (
             <div style={{ marginBottom: "28px" }}>
               <h2 style={{ marginBottom: "16px" }}>Manage Consultants</h2>
 
               <div
-                style={{ display: "flex", gap: "12px", marginBottom: "22px" }}
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  marginBottom: "24px",
+                  alignItems: "center",
+                }}
               >
                 <input
                   type="text"
                   placeholder="New consultant name"
                   value={newConsultantName}
                   onChange={(e) => setNewConsultantName(e.target.value)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #d1d5db",
+                    flex: 1,
+                    fontSize: "14px",
+                  }}
                 />
 
                 <button
                   onClick={addConsultant}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1d4ed8";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#2563eb";
+                  }}
                   style={{
                     backgroundColor: "#2563eb",
                     color: "white",
                     border: "none",
                     borderRadius: "8px",
-                    padding: "8px 14px",
+                    padding: "10px 16px",
                     fontWeight: 600,
                     cursor: "pointer",
+                    transition: "background-color 0.15s ease",
                   }}
                 >
                   Add Consultant
@@ -516,135 +879,185 @@ export default function Home() {
                   </select>
 
                   <button
-  onClick={() => deleteConsultant(consultantToDelete)}
-  style={{
-    backgroundColor: "#dc2626",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    padding: "8px 12px",
-    fontWeight: 600,
-    cursor: "pointer",
-  }}
->
-  Delete
-</button>
+                    onClick={() => deleteConsultant(consultantToDelete)}
+                    style={{
+                      backgroundColor: "#dc2626",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
           )}
           <h2>Add Lead</h2>
 
-<div
-  className="formGrid"
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "12px",
-  }}
->
-  <input
-    type="text"
-    placeholder="Client name"
-    value={name}
-    onChange={(e) => setName(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  />
+          <div
+            className="formGrid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "16px",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Client name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid #2563eb";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #d1d5db",
+                width: "100%",
+                fontSize: "14px",
+                backgroundColor: "#f9fafb",
+                outline: "none",
+              }}
+            />
 
-  <select
-    value={consultant}
-    onChange={(e) => setConsultant(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  >
-    <option value="">Select Consultant</option>
-    {consultants.map((c) => (
-      <option key={c} value={c}>
-        {c}
-      </option>
-    ))}
-  </select>
+            <select
+              value={consultant}
+              onChange={(e) => setConsultant(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid #2563eb";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #d1d5db",
+                width: "100%",
+                fontSize: "14px",
+                backgroundColor: "#f9fafb",
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value="">Select Consultant</option>
+              {consultants.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
 
-  <input
-    type="text"
-    placeholder="Phone number"
-    value={phone}
-    onChange={(e) => setPhone(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  />
+            <input
+              type="text"
+              placeholder="Phone number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid #2563eb";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #d1d5db",
+                width: "100%",
+                fontSize: "14px",
+                backgroundColor: "#f9fafb",
+              }}
+            />
 
-  <input
-    type="text"
-    placeholder="Reference number"
-    value={referenceNumber}
-    onChange={(e) => setReferenceNumber(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  />
+            <input
+              type="text"
+              placeholder="Reference number"
+              value={referenceNumber}
+              onChange={(e) => setReferenceNumber(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid #2563eb";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #d1d5db",
+                width: "100%",
+                fontSize: "14px",
+                backgroundColor: "#f9fafb",
+              }}
+            />
 
-  <input
-    type="date"
-    value={lastContact}
-    onChange={(e) => setLastContact(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  />
+            <input
+              type="date"
+              value={lastContact}
+              onChange={(e) => setLastContact(e.target.value)}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid #2563eb";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid #d1d5db";
+              }}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: "1px solid #d1d5db",
+                width: "100%",
+                fontSize: "14px",
+                backgroundColor: "#f9fafb",
+              }}
+            />
 
-  <select
-    value={status}
-    onChange={(e) => setStatus(e.target.value)}
-    style={{
-      padding: "8px",
-      borderRadius: "6px",
-      border: "1px solid #ccc",
-      width: "100%",
-    }}
-  >
-    {STATUS_OPTIONS.map((s) => (
-      <option key={s} value={s}>
-        {s}
-      </option>
-    ))}
-  </select>
-</div>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              style={{
+                padding: "8px",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+                width: "100%",
+              }}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <button
-  onClick={addLead}
-  style={{
-    backgroundColor: "#16a34a",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    padding: "10px",
-    fontWeight: 600,
-    cursor: "pointer",
-    marginTop: "10px",
-  }}
->
-  Add Lead
-</button>
+          <button
+            onClick={addLead}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#15803d";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#16a34a";
+            }}
+            style={{
+              backgroundColor: "#16a34a",
+              color: "white",
+              border: "none",
+              borderRadius: "10px",
+              padding: "10px 16px",
+              fontWeight: 600,
+              cursor: "pointer",
+              marginTop: "10px",
+              transition: "background-color 0.15s ease",
+            }}
+          >
+            Add Lead
+          </button>
         </section>
 
         <section className="panel" style={{ marginBottom: "24px" }}>
@@ -654,13 +1067,14 @@ export default function Home() {
 
           {followUps.map((lead) => (
             <LeadCard
-              key={lead.id}
-              lead={lead}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-            />
+  key={lead.id}
+  lead={lead}
+  updateStatus={updateStatus}
+  markContacted={markContacted}
+  openWhatsApp={openWhatsApp}
+  deleteLead={deleteLead}
+  updateLeadName={updateLeadName}
+/>
           ))}
         </section>
 
@@ -711,49 +1125,104 @@ export default function Home() {
               markContacted={markContacted}
               openWhatsApp={openWhatsApp}
               deleteLead={deleteLead}
+              updateLeadName={updateLeadName}
             />
           ))}
         </section>
       </section>
 
       {toast && (
-  <div className="toast">
-    <span>{toast}</span>
+        <div
+          className="toast relative inline-flex items-center gap-3 px-5 py-3 animate-toastIn"
+          onMouseEnter={() => setCloseVisible(true)}
+          onMouseLeave={() => setCloseVisible(false)}
+        >
+          <span>{toast}</span>
 
-    <div>
-      {undoLead && (
-        <button onClick={undoDelete}>Undo ({undoSeconds})</button>
+          <div>
+            {undoLead && (
+              <button
+                key={undoLead?.id}
+                className="undoButton"
+                onClick={undoDelete}
+              >
+                <span>Undo ({undoSeconds})</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                stopUndoSequence();
+                setToast("");
+                setUndoLead(null);
+                setUndoSeconds(0);
+              }}
+              aria-label="Close toast"
+              style={{
+                position: "absolute",
+                top: "-6px", // ↓ moves it DOWN slightly
+                right: "-7px", // ← moves it LEFT slightly
+                width: "16px",
+                height: "16px",
+                borderRadius: "999px",
+                border: "1px solid rgba(0,0,0,0.16)",
+                background: "rgba(245,245,245,0.72)",
+                color: "rgba(40,40,40,0.65)",
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                opacity: closeVisible ? 0.75 : 0.35,
+                boxShadow: "0 2px 6px rgba(0,0,0,0.16)",
+                backdropFilter: "blur(6px)",
+                transition: "all 0.16s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.transform = "scale(1.16)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.95)";
+                e.currentTarget.style.boxShadow =
+                  "0 0 10px rgba(255,255,255,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = closeVisible ? "0.75" : "0.35";
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.background = "rgba(245,245,245,0.72)";
+                e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.16)";
+              }}
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 12 12"
+                style={{
+                  display: "block",
+                }}
+              >
+                <line
+                  x1="2"
+                  y1="2"
+                  x2="10"
+                  y2="10"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+                <line
+                  x1="10"
+                  y1="2"
+                  x2="2"
+                  y2="10"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
-
-      <button
-  onClick={() => setToast("")}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)";
-    e.currentTarget.style.color = "white";
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.backgroundColor = "transparent";
-    e.currentTarget.style.color = "#e5e7eb";
-  }}
-  style={{
-    backgroundColor: "transparent",
-    color: "#e5e7eb",
-    border: "none",
-    fontSize: "18px",
-    fontWeight: 600,
-    cursor: "pointer",
-    padding: "0 6px",
-    marginLeft: "6px",
-    borderRadius: "4px",
-    lineHeight: 1,
-    transition: "background-color 0.15s ease, color 0.15s ease",
-  }}
->
-  ×
-</button>
-    </div>
-  </div>
-)}
 
       <GlobalStyles />
     </main>
@@ -770,10 +1239,38 @@ function Card({
   color?: string;
 }) {
   return (
-    <div className="card">
-      <div className="cardLabel">{label}</div>
-      <div className="cardValue" style={{ color }}>
-        {value}
+    <div
+      className="card"
+      style={{
+        borderRadius: "16px",
+        padding: "24px",
+        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+        border: "1px solid #eef2f7",
+      }}
+    >
+      <div
+        className="cardLabel"
+        style={{
+          fontSize: "14px",
+          color: "#64748b",
+          marginBottom: "14px",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        className="cardValue"
+        style={{
+          color,
+          fontSize: "34px",
+          fontWeight: 700,
+          letterSpacing: "-0.03em",
+        }}
+      >
+        <span className="statNumber" style={{ color }}>
+          {value}
+        </span>
       </div>
     </div>
   );
@@ -785,11 +1282,51 @@ function LeadCard({
   markContacted,
   openWhatsApp,
   deleteLead,
-}: any) {
+  updateLeadName,
+}: {
+  lead: Lead;
+  updateStatus: (id: string, status: string) => void;
+  markContacted: (id: string) => void;
+  openWhatsApp: (lead: Lead) => void;
+  deleteLead: (lead: Lead) => void;
+  updateLeadName: (id: string, newName: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+const [editName, setEditName] = useState(lead.name);
   return (
     <div className="leadCard">
       <div>
-        <strong className="leadName">{lead.name}</strong>
+        {isEditing ? (
+  <div>
+    <input
+      value={editName}
+      onChange={(e) => setEditName(e.target.value)}
+      className="editInput"
+      autoFocus
+    />
+
+    <div className="editActions">
+      <button
+        className="secondaryButton"
+        onClick={() => {
+  updateLeadName(lead.id, editName);
+  setIsEditing(false);
+}}
+      >
+        Save
+      </button>
+
+      <button
+        className="secondaryButton"
+        onClick={() => setIsEditing(false)}
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+) : (
+  <strong className="leadName">{lead.name}</strong>
+)}
         <p>Consultant: {lead.consultant}</p>
         <p>Phone: {lead.phone || "No phone"}</p>
         <p>Ref: {lead.reference_number || "N/A"}</p>
@@ -834,6 +1371,16 @@ function LeadCard({
           WhatsApp
         </button>
 
+<button
+  className="secondaryButton"
+  onClick={() => {
+    setEditName(lead.name);
+    setIsEditing(true);
+  }}
+>
+  Edit
+</button>
+
         <button className="deleteButton" onClick={() => deleteLead(lead)}>
           Delete
         </button>
@@ -848,7 +1395,7 @@ function GlobalStyles() {
       body {
         margin: 0;
         font-family: Arial, sans-serif;
-        background: #f8fafc;
+        background: #f3f6fb;
       }
 
       button,
@@ -909,13 +1456,27 @@ function GlobalStyles() {
         margin-bottom: 24px;
       }
 
-      .card,
-      .panel,
-      .leadCard,
-      .loginCard {
+      .panel {
         background: white;
         border-radius: 16px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        padding: 28px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+        border: 1px solid #eef2f7;
+      }
+      .card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+        border: 1px solid #eef2f7;
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
       }
 
       .card {
