@@ -493,8 +493,8 @@ button:active {
   z-index: 9999;
 
   width: fit-content;
-min-width: 0;
-max-width: 90vw;
+  min-width: 0;
+  max-width: 90vw;
 
   display: inline-flex;
   align-items: center;
