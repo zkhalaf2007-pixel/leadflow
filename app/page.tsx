@@ -73,24 +73,29 @@ export default function Home() {
   const popSoundRef = useRef<HTMLAudioElement | null>(null);
   const countdownSoundRef = useRef<HTMLAudioElement | null>(null);
   const finalSoundRef = useRef<HTMLAudioElement | null>(null);
+  const tickSoundRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
     popSoundRef.current = new Audio("/pop.mp3");
     countdownSoundRef.current = new Audio("/countdown-pop.mp3");
-    finalSoundRef.current = new Audio("/final-droop-pop.mp3");
+    finalSoundRef.current = new Audio("/final-drop-pop.mp3");
+    tickSoundRef.current = new Audio("/tick.mp3");
   }, []);
   function playSound(
-    soundRef: React.RefObject<HTMLAudioElement | null>,
-    options?: { volume?: number; playbackRate?: number },
-  ) {
-    const baseSound = soundRef.current;
-    if (!baseSound) return;
+  soundRef: React.RefObject<HTMLAudioElement | null>,
+  options?: { volume?: number; playbackRate?: number }
+) {
+  const baseSound = soundRef.current;
+  if (!baseSound?.src) return;
 
-    const sound = baseSound.cloneNode(true) as HTMLAudioElement;
-    sound.volume = options?.volume ?? 1;
-    sound.playbackRate = options?.playbackRate ?? 1;
-    sound.currentTime = 0;
-    sound.play().catch(() => {});
-  }
+  const sound = new Audio(baseSound.src);
+  sound.volume = options?.volume ?? 1;
+  sound.playbackRate = options?.playbackRate ?? 1;
+  sound.currentTime = 0;
+
+  sound.play().catch((error) => {
+    console.log("Sound failed:", error);
+  });
+}
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
@@ -105,17 +110,30 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
+  const [toastState, setToastState] = useState<{
+  id: number;
+  message: string;
+  type: "normal" | "undo";
+  seconds: number;
+} | null>(null);
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
   const [consultantToDelete, setConsultantToDelete] = useState("");
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const undoRunRef = useRef(0);
+  const toastRunIdRef = useRef(0);
+const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const undoStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const finalPlayedRef = useRef(false);
+  const countdownSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+useEffect(() => {
+  popSoundRef.current = new Audio("/pop.mp3");
+  tickSoundRef.current = new Audio("/tick.mp3");
+  finalSoundRef.current = new Audio("/final-drop-pop.mp3");
+}, []);
   function stopUndoSequence() {
-    undoRunRef.current += 1;
 
     if (toastTimerRef.current) {
       clearInterval(toastTimerRef.current);
@@ -126,11 +144,6 @@ export default function Home() {
     if (toastClearTimeoutRef.current) {
       clearTimeout(toastClearTimeoutRef.current);
       toastClearTimeoutRef.current = null;
-    }
-
-    if (undoStartTimeoutRef.current) {
-      clearTimeout(undoStartTimeoutRef.current);
-      undoStartTimeoutRef.current = null;
     }
 
     if (popSoundRef.current) {
@@ -151,77 +164,84 @@ export default function Home() {
     setUndoSeconds(0);
   }
 
+function clearAllToastTimers() {
+  toastRunIdRef.current += 1;
+
+  if (toastTimerRef.current) clearInterval(toastTimerRef.current);
+  if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
+  if (countdownSoundTimeoutRef.current) clearTimeout(countdownSoundTimeoutRef.current);
+  if (finalToastTimeoutRef.current) clearTimeout(finalToastTimeoutRef.current);
+  if (undoTickTimeoutRef.current)
+  clearTimeout(undoTickTimeoutRef.current);
+
+  toastTimerRef.current = null;
+  normalToastTimerRef.current = null;
+  countdownSoundTimeoutRef.current = null;
+  finalToastTimeoutRef.current = null;
+  undoTickTimeoutRef.current = null;
+  finalPlayedRef.current = false;
+}
+
   function showToast(message: string) {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-      clearInterval(toastTimerRef.current);
-      toastTimerRef.current = null;
-    }
+  clearAllToastTimers();
 
-    setToast(message);
+  const id = toastRunIdRef.current;
 
-    playSound(popSoundRef, { volume: 1 });
+  setUndoLead(null);
+  setToastState({
+    id,
+    message,
+    type: "normal",
+    seconds: 0,
+  });
 
-    toastTimerRef.current = setTimeout(() => {
-      setToast("");
-      setUndoLead(null);
-      setUndoSeconds(0);
-    }, 5000);
-  }
+  playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
+
+  normalToastTimerRef.current = setTimeout(() => {
+    if (toastRunIdRef.current !== id) return;
+    setToastState(null);
+  }, 5000);
+}
 
   function showUndoToast(message: string) {
-    stopUndoSequence();
+  clearAllToastTimers();
 
-    const runId = undoRunRef.current;
+  const id = toastRunIdRef.current;
+  let secondsLeft = 5;
 
-    if (toastTimerRef.current) {
-      clearInterval(toastTimerRef.current);
+  setToastState({ id, message, type: "undo", seconds: secondsLeft });
+  playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
+
+  function tick() {
+    if (toastRunIdRef.current !== id) return;
+
+    secondsLeft -= 1;
+
+    setToastState({ id, message, type: "undo", seconds: secondsLeft });
+
+    if (secondsLeft > 0) {
+      playSound(tickSoundRef, { volume: 0.1, playbackRate: 1 });
+
+      countdownSoundTimeoutRef.current = setTimeout(() => {
+        if (toastRunIdRef.current !== id) return;
+        playSound(countdownSoundRef, { volume: 0.32, playbackRate: 1.03 });
+      }, 40);
+
+      undoTickTimeoutRef.current = setTimeout(tick, 1000);
+      return;
     }
 
-    if (toastClearTimeoutRef.current) {
-      clearTimeout(toastClearTimeoutRef.current);
-    }
+    playSound(finalSoundRef, { volume: 0.2, playbackRate: 0.9 });
 
-    setToast(message);
-    setUndoSeconds(5);
-    playSound(popSoundRef, { volume: 1 });
-    finalPlayedRef.current = false;
-
-    let secondsLeft = 5;
-
-    toastTimerRef.current = setInterval(() => {
-      secondsLeft -= 1;
-
-      setUndoSeconds(secondsLeft);
-
-      if (secondsLeft > 0) {
-        playSound(countdownSoundRef, {
-          volume: 0.04,
-          playbackRate: 1,
-        });
-      }
-
-      if (secondsLeft <= 0) {
-        clearInterval(toastTimerRef.current!);
-        toastTimerRef.current = null;
-
-        if (!finalPlayedRef.current) {
-          finalPlayedRef.current = true;
-
-          playSound(finalSoundRef, {
-            volume: 0.07,
-            playbackRate: 0.75,
-          });
-        }
-
-        setTimeout(() => {
-          setToast("");
-          setUndoLead(null);
-          setUndoSeconds(0);
-        }, 700);
-      }
-    }, 1000);
+    finalToastTimeoutRef.current = setTimeout(() => {
+      if (toastRunIdRef.current !== id) return;
+      setToastState(null);
+      setUndoLead(null);
+    }, 500);
   }
+
+  undoTickTimeoutRef.current = setTimeout(tick, 1000);
+}
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({
@@ -378,62 +398,60 @@ export default function Home() {
     if (error) return alert("Error deleting lead");
 
     fetchLeads();
-    showUndoToast("Lead deleted");
+showUndoToast("Lead deleted");
   }
 
   async function updateLeadName(id: string, newName: string) {
-  setLeads((prev) =>
-    prev.map((lead) =>
-      lead.id === id ? { ...lead, name: newName } : lead
-    )
-  );
+    setLeads((prev) =>
+      prev.map((lead) => (lead.id === id ? { ...lead, name: newName } : lead)),
+    );
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ name: newName })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ name: newName })
+      .eq("id", id);
 
-  if (error) {
-    alert("Error updating lead name");
-    fetchLeads();
+    if (error) {
+      alert("Error updating lead name");
+      fetchLeads();
+    }
   }
-}
 
-async function updateLeadPhone(id: string, newPhone: string) {
-  setLeads((prev) =>
-    prev.map((lead) =>
-      lead.id === id ? { ...lead, phone: newPhone } : lead
-    )
-  );
+  async function updateLeadPhone(id: string, newPhone: string) {
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === id ? { ...lead, phone: newPhone } : lead,
+      ),
+    );
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ phone: newPhone })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ phone: newPhone })
+      .eq("id", id);
 
-  if (error) {
-    alert("Error updating lead phone");
-    fetchLeads();
+    if (error) {
+      alert("Error updating lead phone");
+      fetchLeads();
+    }
   }
-}
 
-async function updateLeadConsultant(id: string, newConsultant: string) {
-  setLeads((prev) =>
-    prev.map((lead) =>
-      lead.id === id ? { ...lead, consultant: newConsultant } : lead
-    )
-  );
+  async function updateLeadConsultant(id: string, newConsultant: string) {
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === id ? { ...lead, consultant: newConsultant } : lead,
+      ),
+    );
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ consultant: newConsultant })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("leads")
+      .update({ consultant: newConsultant })
+      .eq("id", id);
 
-  if (error) {
-    alert("Error updating consultant");
-    fetchLeads();
+    if (error) {
+      alert("Error updating consultant");
+      fetchLeads();
+    }
   }
-}
 
   async function undoDelete() {
     stopUndoSequence();
@@ -468,7 +486,7 @@ async function updateLeadConsultant(id: string, newConsultant: string) {
   }
 
   async function openWhatsApp(lead: Lead) {
-  const phone = lead.phone;
+    const phone = lead.phone;
     if (!phone) {
       alert("No phone number saved for this lead");
       return;
@@ -1103,16 +1121,17 @@ async function updateLeadConsultant(id: string, newConsultant: string) {
 
           {followUps.map((lead) => (
             <LeadCard
-  key={lead.id}
-  lead={lead}
-  updateStatus={updateStatus}
-  markContacted={markContacted}
-  openWhatsApp={openWhatsApp}
-  deleteLead={deleteLead}
-  updateLeadName={updateLeadName}
-  updateLeadPhone={updateLeadPhone}
-updateLeadConsultant={updateLeadConsultant}
-/>
+              key={lead.id}
+              lead={lead}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+              updateLeadName={updateLeadName}
+              updateLeadPhone={updateLeadPhone}
+              updateLeadConsultant={updateLeadConsultant}
+              consultantNames={consultants}
+            />
           ))}
         </section>
 
@@ -1165,104 +1184,43 @@ updateLeadConsultant={updateLeadConsultant}
               deleteLead={deleteLead}
               updateLeadName={updateLeadName}
               updateLeadPhone={updateLeadPhone}
-updateLeadConsultant={updateLeadConsultant}
+              updateLeadConsultant={updateLeadConsultant}
+              consultantNames={consultants}
             />
           ))}
         </section>
       </section>
 
-      {toast && (
-        <div
-          className="toast relative inline-flex items-center gap-3 px-5 py-3 animate-toastIn"
-          onMouseEnter={() => setCloseVisible(true)}
-          onMouseLeave={() => setCloseVisible(false)}
-        >
-          <span>{toast}</span>
+      {toastState && (
+  <div
+  key={toastState.id}
+  className={toastState.type === "undo" ? "toast undoToast" : "toast normalToast"}
+>
+    <span className="toastText">{toastState.message}</span>
 
-          <div>
-            {undoLead && (
-              <button
-                key={undoLead?.id}
-                className="undoButton"
-                onClick={undoDelete}
-              >
-                <span>Undo ({undoSeconds})</span>
-              </button>
-            )}
+    {toastState.type === "undo" && (
+      <button className="undoButton" onClick={undoDelete}>
+        Undo ({toastState.seconds})
+      </button>
+    )}
 
-            <button
-              onClick={() => {
-                stopUndoSequence();
-                setToast("");
-                setUndoLead(null);
-                setUndoSeconds(0);
-              }}
-              aria-label="Close toast"
-              style={{
-                position: "absolute",
-                top: "-6px", // ↓ moves it DOWN slightly
-                right: "-7px", // ← moves it LEFT slightly
-                width: "16px",
-                height: "16px",
-                borderRadius: "999px",
-                border: "1px solid rgba(0,0,0,0.16)",
-                background: "rgba(245,245,245,0.72)",
-                color: "rgba(40,40,40,0.65)",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                opacity: closeVisible ? 0.75 : 0.35,
-                boxShadow: "0 2px 6px rgba(0,0,0,0.16)",
-                backdropFilter: "blur(6px)",
-                transition: "all 0.16s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "1";
-                e.currentTarget.style.transform = "scale(1.16)";
-                e.currentTarget.style.background = "rgba(255,255,255,0.95)";
-                e.currentTarget.style.boxShadow =
-                  "0 0 10px rgba(255,255,255,0.5)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = closeVisible ? "0.75" : "0.35";
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.background = "rgba(245,245,245,0.72)";
-                e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.16)";
-              }}
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 12 12"
-                style={{
-                  display: "block",
-                }}
-              >
-                <line
-                  x1="2"
-                  y1="2"
-                  x2="10"
-                  y2="10"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="10"
-                  y1="2"
-                  x2="2"
-                  y2="10"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
+    <button
+      className="toastCloseButton"
+      onClick={() => {
+        clearAllToastTimers();
+        setToastState(null);
+        setUndoLead(null);
+      }}
+      aria-label="Close notification"
+    >
+      ×
+    </button>
+
+    {toastState.type === "undo" && (
+      <div className="toastProgress" key={`progress-${toastState.id}`} />
+    )}
+  </div>
+)}
 
       <GlobalStyles />
     </main>
@@ -1324,7 +1282,8 @@ function LeadCard({
   deleteLead,
   updateLeadName,
   updateLeadPhone,
-updateLeadConsultant,
+  updateLeadConsultant,
+  consultantNames,
 }: {
   lead: Lead;
   updateStatus: (id: string, status: string) => void;
@@ -1333,62 +1292,78 @@ updateLeadConsultant,
   deleteLead: (lead: Lead) => void;
   updateLeadName: (id: string, newName: string) => void;
   updateLeadPhone: (id: string, newPhone: string) => void;
-updateLeadConsultant: (id: string, newConsultant: string) => void;
+  updateLeadConsultant: (id: string, newConsultant: string) => void;
+  consultantNames: string[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
-const [editName, setEditName] = useState(lead.name);
-const [editPhone, setEditPhone] = useState(lead.phone || "");
-const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
+  const [editName, setEditName] = useState(lead.name);
+  const [editPhone, setEditPhone] = useState(lead.phone || "");
+  const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
+  const [justSaved, setJustSaved] = useState(false);
   return (
     <div className="leadCard">
       <div>
         {isEditing ? (
-  <div>
-    <input
-      value={editName}
-      onChange={(e) => setEditName(e.target.value)}
-      className="editInput"
-      autoFocus
-    />
+          <div className="leadEditRow">
+            <div className="editFields">
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="editInput"
+                autoFocus
+              />
 
-<input
-  value={editPhone}
-  onChange={(e) => setEditPhone(e.target.value)}
-  className="editInput"
-  placeholder="Phone"
-/>
+              <input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="editInput"
+                placeholder="Phone"
+              />
 
-<input
-  value={editConsultant}
-  onChange={(e) => setEditConsultant(e.target.value)}
-  className="editInput"
-  placeholder="Consultant"
-/>
+              <select
+                value={editConsultant}
+                onChange={(e) => setEditConsultant(e.target.value)}
+                className="editInput"
+              >
+                <option value="">Select Consultant</option>
+                {consultantNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-    <div className="editActions">
-      <button
-        className="secondaryButton"
-        onClick={() => {
-  updateLeadName(lead.id, editName);
-  updateLeadPhone(lead.id, editPhone);
-  updateLeadConsultant(lead.id, editConsultant);
-  setIsEditing(false);
-}}
-      >
-        Save
-      </button>
+            <div className="editActions">
+              <button
+                className="primaryButton"
+                onClick={() => {
+                  updateLeadName(lead.id, editName);
+                  updateLeadPhone(lead.id, editPhone);
+                  updateLeadConsultant(lead.id, editConsultant);
+                  setJustSaved(true);
 
-      <button
-        className="secondaryButton"
-        onClick={() => setIsEditing(false)}
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-) : (
-  <strong className="leadName">{lead.name}</strong>
-)}
+setTimeout(() => {
+  setJustSaved(false);
+}, 1200);
+
+setIsEditing(false);
+                }}
+              >
+                Save
+              </button>
+
+              <button
+                className="secondaryButton"
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <strong className="leadName">{lead.name}</strong>
+        )}
         <p>Consultant: {lead.consultant}</p>
         <p>Phone: {lead.phone || "No phone"}</p>
         <p>Ref: {lead.reference_number || "N/A"}</p>
@@ -1408,14 +1383,21 @@ const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
         </span>
       </div>
 
-      <div className="actions">
+{justSaved && <span className="saveToast">Saved ✓</span>}
+
+      <div className="leadActions">
         <select
-          value={lead.status || "New"}
+          value={lead.status}
           onChange={(e) => updateStatus(lead.id, e.target.value)}
+          className="statusSelect"
         >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
+          <option value="New">New</option>
+          <option value="Contacted">Contacted</option>
+          <option value="Followed Up">Followed Up</option>
+          <option value="Viewing Scheduled">Viewing Scheduled</option>
+          <option value="Offer Made">Offer Made</option>
+          <option value="Won">Won</option>
+          <option value="Lost">Lost</option>
         </select>
 
         <button
@@ -1426,26 +1408,22 @@ const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
         </button>
 
         <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
-            alt="WhatsApp"
-          />
+          <svg className="whatsappSvg" viewBox="0 0 448 512" aria-hidden="true">
+            <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32 101.5 32 2 131.5 2 253.9c0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.5 224.1-221.9 0-59.3-25.2-115-67.1-157.1zM223.9 438.7c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3 18.6-68.1-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8s-14.3 18-17.6 21.8c-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2s-9.7 1.4-14.8 6.9c-5.1 5.6-19.4 19-19.4 46.3s19.9 53.7 22.6 57.4c2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+          </svg>
           WhatsApp
         </button>
 
-<button
-  className="secondaryButton"
-  onClick={() => {
-    setEditName(lead.name);
-setEditPhone(lead.phone || "");
-setEditConsultant(lead.consultant || "");
-setIsEditing(true);
-  }}
->
-  Edit
-</button>
+        {!isEditing && (
+          <button
+            className="secondaryButton"
+            onClick={() => setIsEditing(true)}
+          >
+            Edit
+          </button>
+        )}
 
-        <button className="deleteButton" onClick={() => deleteLead(lead)}>
+        <button className="dangerButton" onClick={() => deleteLead(lead)}>
           Delete
         </button>
       </div>

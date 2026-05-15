@@ -172,3 +172,462 @@ button:active {
 .animate-toastIn {
   animation: toastIn 180ms ease-out;
 }
+
+.secondaryButton {
+  background-color: #f3f4f6;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.secondaryButton:hover {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.secondaryButton:active {
+  transform: scale(0.97);
+}
+
+.primaryButton {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.primaryButton:hover {
+  background-color: #1d4ed8;
+}
+
+.primaryButton:active {
+  transform: scale(0.97);
+}
+
+.dangerButton {
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dangerButton:hover {
+  background-color: #b91c1c;
+}
+
+.editFields {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+}
+
+.editInput {
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.editInput:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.editActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.leadCard {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.18s ease;
+}
+
+.leadCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+.leadCard:active {
+  transform: scale(0.99);
+}
+
+/* 👇 Hover effect (this is the magic) */
+.leadCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+.leadCard:active {
+  transform: scale(0.99);
+}
+
+.leadEditRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.editInput {
+  cursor: pointer;
+}
+
+.editInput:hover {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.leadActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+}
+
+.leadActions .statusSelect {
+  width: 140px;
+}
+
+.leadActions button,
+.leadActions select {
+  height: 38px;
+  border-radius: 10px;
+}
+
+.leadActions .secondaryButton {
+  padding: 0 14px;
+}
+
+.leadActions .whatsappButton {
+  padding: 0 14px;
+}
+
+.leadActions .dangerButton {
+  padding: 0 14px;
+}
+
+.whatsappButton {
+  background-color: #16a34a;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.whatsappButton:hover {
+  background-color: #15803d;
+  transform: translateY(-1px);
+}
+
+.whatsappSvg {
+  width: 18px;
+  height: 18px;
+  fill: white;
+  flex-shrink: 0;
+}
+
+.leadActions select {
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  padding: 0 12px;
+  background-color: white;
+  transition: all 0.15s ease;
+}
+
+.leadActions select:hover,
+.leadActions select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background-color: #ffffff;
+}
+
+.leadActions button,
+.leadActions select {
+  transition: all 0.15s ease;
+}
+
+.leadActions button:hover {
+  transform: translateY(-1px);
+}
+
+.leadActions button:active {
+  transform: scale(0.97);
+}
+
+.saveToast {
+  display: inline-block;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 6px;
+  animation: fadePop 1.2s ease forwards;
+}
+
+@keyframes fadePop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.secondaryButton,
+.dangerButton,
+.whatsappButton {
+  letter-spacing: 0.2px;
+}
+
+.secondaryButton {
+  border: 1px solid #d1d5db;
+}
+
+.secondaryButton:hover {
+  background-color: #f9fafb;
+}
+
+.dangerButton:hover {
+  background-color: #dc2626;
+}
+
+.editFields input,
+.editFields select {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 8px 10px;
+  transition: all 0.15s ease;
+}
+
+.editFields input:focus,
+.editFields select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.leadCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+button,
+input,
+select,
+textarea {
+  transition: all 0.15s ease;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+.toast {
+  overflow: hidden;
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate3d(-50%, 0, 0);
+  z-index: 9999;
+
+  width: fit-content;
+min-width: 0;
+max-width: 90vw;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 9px 10px 14px 10px;
+  border-radius: 14px;
+  background: #111827;
+  color: white;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+
+  animation: toastIn 0.14s ease-out both;
+}
+
+.toastText {
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.normalToast {
+  gap: 6px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.undoToast {
+  gap: 6px;
+}
+
+.undoButton {
+  appearance: none;
+  -webkit-appearance: none;
+  margin-left: 2px;
+  border: none;
+  background: #facc15 !important;
+  background-image: none !important;
+  color: #111827;
+  font-weight: 700;
+  border-radius: 9px;
+  padding: 7px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  box-shadow: none !important;
+  overflow: visible;
+}
+
+.undoButton,
+.undoButton::before,
+.undoButton::after {
+  animation: none !important;
+  transition: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.undoButton::before,
+.undoButton::after {
+  content: none !important;
+  display: none !important;
+}
+
+.toastCloseButton {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.toastCloseButton:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  transform: scale(1.04);
+}
+
+.toastCloseButton:active {
+  transform: scale(0.94);
+}
+
+.toastProgress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+
+  height: 3px;
+  border-radius: 999px;
+
+  background: rgba(250, 204, 21, 0.9);
+
+  transform-origin: left;
+  animation: toastProgressDrain 5s linear forwards;
+}
+
+@keyframes toastProgressDrain {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
