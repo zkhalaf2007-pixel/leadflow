@@ -159,13 +159,22 @@ button:active {
 }
 
 @keyframes toastIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
+    transform: translateX(-50%) translateY(10px) scale(0.96);
+    filter: blur(2px);
   }
-  to {
+
+  70% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(-50%) translateY(-2px) scale(1.015);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
@@ -499,20 +508,33 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
 
-  padding: 9px 10px 14px 10px;
-  border-radius: 14px;
+  padding: 10px 12px 15px 12px;
+  border-radius: 16px;
   background: #111827;
   color: white;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
 
-  animation: toastIn 0.14s ease-out both;
+  animation: toastIn 0.28s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+
+  transition:
+  transform 0.2s ease,
+  box-shadow 0.2s ease;
+}
+
+.toast:hover {
+  transform: translate3d(-50%, -2px, 0);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
 }
 
 .toastText {
   white-space: nowrap;
-  line-height: 1;
+  line-height: 1.2;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .normalToast {
@@ -526,21 +548,31 @@ button:active {
 }
 
 .undoButton {
-  appearance: none;
-  -webkit-appearance: none;
   margin-left: 2px;
   border: none;
   background: #facc15 !important;
-  background-image: none !important;
   color: #111827;
+  font-size: 13px;
   font-weight: 700;
-  border-radius: 9px;
+  letter-spacing: -0.01em;
+  border-radius: 10px;
   padding: 7px 11px;
   cursor: pointer;
   white-space: nowrap;
   line-height: 1;
-  box-shadow: none !important;
-  overflow: visible;
+
+  transition:
+  transform 0.12s ease,
+  filter 0.2s ease;
+}
+
+.undoButton:hover {
+  filter: brightness(1.05);
+  transform: translateY(-0.5px);
+}
+
+.undoButton:active {
+  transform: scale(0.96);
 }
 
 .undoButton,
@@ -564,35 +596,41 @@ button:active {
 
   width: 18px;
   height: 18px;
-  margin-left: 4px;
+  margin-left: 6px;
 
-  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
 
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
 
+  color: rgba(255, 255, 255, 0.75);
   font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+  font-weight: 500;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  transition:
+    background 0.2s ease,
+    transform 0.12s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .toastCloseButton:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.14);
   color: white;
-  transform: scale(1.04);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: scale(1.05);
 }
 
 .toastCloseButton:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .toastProgress {
@@ -604,19 +642,35 @@ button:active {
   height: 3px;
   border-radius: 999px;
 
-  background: rgba(250, 204, 21, 0.9);
+  background: linear-gradient(
+    90deg,
+    rgba(250, 204, 21, 0.95),
+    rgba(251, 191, 36, 0.95)
+  );
+
+  box-shadow:
+    0 0 6px rgba(250, 204, 21, 0.35),
+    0 0 12px rgba(250, 204, 21, 0.15);
 
   transform-origin: left;
-  animation: toastProgressDrain 5s linear forwards;
+  will-change: transform;
+  animation: toastProgressDrain 5s cubic-bezier(0.25, 0.9, 0.3, 1) forwards;
 }
 
 @keyframes toastProgressDrain {
-  from {
+  0% {
     transform: scaleX(1);
+    opacity: 1;
   }
 
-  to {
+  85% {
+    transform: scaleX(0.08);
+    opacity: 1;
+  }
+
+  100% {
     transform: scaleX(0);
+    opacity: 0.85;
   }
 }
 
