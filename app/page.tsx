@@ -82,19 +82,35 @@ export default function Home() {
   }, []);
   function playSound(
   soundRef: React.RefObject<HTMLAudioElement | null>,
-  options?: { volume?: number; playbackRate?: number }
+  options?: { volume?: number; playbackRate?: number },
 ) {
   const baseSound = soundRef.current;
   if (!baseSound?.src) return;
 
   const sound = new Audio(baseSound.src);
-  sound.volume = options?.volume ?? 1;
+  const targetVolume = options?.volume ?? 1;
+
+  sound.volume = 0;
   sound.playbackRate = options?.playbackRate ?? 1;
   sound.currentTime = 0;
 
   sound.play().catch((error) => {
     console.log("Sound failed:", error);
   });
+
+  let volume = 0;
+
+  const fadeIn = setInterval(() => {
+    volume += targetVolume / 6;
+
+    if (volume >= targetVolume) {
+      sound.volume = targetVolume;
+      clearInterval(fadeIn);
+      return;
+    }
+
+    sound.volume = volume;
+  }, 16);
 }
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -116,6 +132,7 @@ export default function Home() {
   type: "normal" | "undo";
   seconds: number;
 } | null>(null);
+const [toastExiting, setToastExiting] = useState(false);
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
@@ -1189,9 +1206,11 @@ showUndoToast("Lead deleted");
       {toastState && (
   <div
     key={toastState.id}
-    className={
-      (toastState.type === "undo" ? "toast undoToast" : "toast normalToast")
-    }
+    className={`${
+  toastState.type === "undo"
+    ? "toast undoToast"
+    : "toast normalToast"
+} ${toastExiting ? "toastExiting" : ""}`}
   >
     <span className="toastText">{toastState.message}</span>
 
@@ -1205,8 +1224,13 @@ showUndoToast("Lead deleted");
       className="toastCloseButton"
       onClick={() => {
         clearAllToastTimers();
-        setToastState(null);
-        setUndoLead(null);
+setToastExiting(true);
+
+setTimeout(() => {
+  setToastState(null);
+  setToastExiting(false);
+  setUndoLead(null);
+}, 180);
       }}
       aria-label="Close notification"
     >
