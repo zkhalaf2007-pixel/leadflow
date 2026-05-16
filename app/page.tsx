@@ -81,21 +81,21 @@ export default function Home() {
     tickSoundRef.current = new Audio("/tick.mp3");
   }, []);
   function playSound(
-    soundRef: React.RefObject<HTMLAudioElement | null>,
-    options?: { volume?: number; playbackRate?: number },
-  ) {
-    const baseSound = soundRef.current;
-    if (!baseSound?.src) return;
+  soundRef: React.RefObject<HTMLAudioElement | null>,
+  options?: { volume?: number; playbackRate?: number }
+) {
+  const baseSound = soundRef.current;
+  if (!baseSound?.src) return;
 
-    const sound = new Audio(baseSound.src);
-    sound.volume = options?.volume ?? 1;
-    sound.playbackRate = options?.playbackRate ?? 1;
-    sound.currentTime = 0;
+  const sound = new Audio(baseSound.src);
+  sound.volume = options?.volume ?? 1;
+  sound.playbackRate = options?.playbackRate ?? 1;
+  sound.currentTime = 0;
 
-    sound.play().catch((error) => {
-      console.log("Sound failed:", error);
-    });
-  }
+  sound.play().catch((error) => {
+    console.log("Sound failed:", error);
+  });
+}
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
@@ -111,29 +111,25 @@ export default function Home() {
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
   const [toastState, setToastState] = useState<{
-    id: number;
-    message: string;
-    type: "normal" | "undo";
-    seconds: number;
-  } | null>(null);
+  id: number;
+  message: string;
+  type: "normal" | "undo";
+  seconds: number;
+} | null>(null);
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
   const [consultantToDelete, setConsultantToDelete] = useState("");
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastRunIdRef = useRef(0);
-  const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
+const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const finalPlayedRef = useRef(false);
   const countdownSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  useEffect(() => {
-    popSoundRef.current = new Audio("/pop.mp3");
-    tickSoundRef.current = new Audio("/tick.mp3");
-    finalSoundRef.current = new Audio("/final-drop-pop.mp3");
-  }, []);
+const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   function stopUndoSequence() {
+
     if (toastTimerRef.current) {
       clearInterval(toastTimerRef.current);
       clearTimeout(toastTimerRef.current);
@@ -163,85 +159,84 @@ export default function Home() {
     setUndoSeconds(0);
   }
 
-  function clearAllToastTimers() {
-    toastRunIdRef.current += 1;
+function clearAllToastTimers() {
+  toastRunIdRef.current += 1;
 
-    if (toastTimerRef.current) clearInterval(toastTimerRef.current);
-    if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
-    if (countdownSoundTimeoutRef.current)
-      clearTimeout(countdownSoundTimeoutRef.current);
-    if (finalToastTimeoutRef.current)
-      clearTimeout(finalToastTimeoutRef.current);
-    if (undoTickTimeoutRef.current) clearTimeout(undoTickTimeoutRef.current);
+  if (toastTimerRef.current) clearInterval(toastTimerRef.current);
+  if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
+  if (countdownSoundTimeoutRef.current) clearTimeout(countdownSoundTimeoutRef.current);
+  if (finalToastTimeoutRef.current) clearTimeout(finalToastTimeoutRef.current);
+  if (undoTickTimeoutRef.current)
+  clearTimeout(undoTickTimeoutRef.current);
 
-    toastTimerRef.current = null;
-    normalToastTimerRef.current = null;
-    countdownSoundTimeoutRef.current = null;
-    finalToastTimeoutRef.current = null;
-    undoTickTimeoutRef.current = null;
-    finalPlayedRef.current = false;
-  }
+  toastTimerRef.current = null;
+  normalToastTimerRef.current = null;
+  countdownSoundTimeoutRef.current = null;
+  finalToastTimeoutRef.current = null;
+  undoTickTimeoutRef.current = null;
+  finalPlayedRef.current = false;
+}
 
   function showToast(message: string) {
-    clearAllToastTimers();
+  clearAllToastTimers();
 
-    const id = toastRunIdRef.current;
+  const id = toastRunIdRef.current;
 
-    setUndoLead(null);
-    setToastState({
-      id,
-      message,
-      type: "normal",
-      seconds: 0,
-    });
+  setUndoLead(null);
+  setToastState({
+    id,
+    message,
+    type: "normal",
+    seconds: 0,
+  });
 
-    playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
+  playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
 
-    normalToastTimerRef.current = setTimeout(() => {
-      if (toastRunIdRef.current !== id) return;
-      setToastState(null);
-    }, 5000);
-  }
+  normalToastTimerRef.current = setTimeout(() => {
+    if (toastRunIdRef.current !== id) return;
+    setToastState(null);
+  }, 5000);
+}
 
   function showUndoToast(message: string) {
-    clearAllToastTimers();
+  clearAllToastTimers();
 
-    const id = toastRunIdRef.current;
-    let secondsLeft = 5;
+  const id = toastRunIdRef.current;
+  let secondsLeft = 5;
+
+  setToastState({ id, message, type: "undo", seconds: secondsLeft });
+  playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
+
+  function tick() {
+    if (toastRunIdRef.current !== id) return;
+
+    secondsLeft -= 1;
 
     setToastState({ id, message, type: "undo", seconds: secondsLeft });
-    playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
 
-    function tick() {
-      if (toastRunIdRef.current !== id) return;
+    if (secondsLeft > 0) {
+      playSound(tickSoundRef, { volume: 0.1, playbackRate: 1 });
 
-      secondsLeft -= 1;
-
-      setToastState({ id, message, type: "undo", seconds: secondsLeft });
-
-      if (secondsLeft > 0) {
-        playSound(tickSoundRef, { volume: 0.1, playbackRate: 1 });
-
-        countdownSoundTimeoutRef.current = setTimeout(() => {
-          if (toastRunIdRef.current !== id) return;
-          playSound(countdownSoundRef, { volume: 0.32, playbackRate: 1.03 });
-        }, 40);
-
-        undoTickTimeoutRef.current = setTimeout(tick, 1000);
-        return;
-      }
-
-      playSound(finalSoundRef, { volume: 0.2, playbackRate: 0.9 });
-
-      finalToastTimeoutRef.current = setTimeout(() => {
+      countdownSoundTimeoutRef.current = setTimeout(() => {
         if (toastRunIdRef.current !== id) return;
-        setToastState(null);
-        setUndoLead(null);
-      }, 500);
+        playSound(countdownSoundRef, { volume: 0.32, playbackRate: 1.03 });
+      }, 40);
+
+      undoTickTimeoutRef.current = setTimeout(tick, 1000);
+      return;
     }
 
-    undoTickTimeoutRef.current = setTimeout(tick, 1000);
+    playSound(finalSoundRef, { volume: 0.2, playbackRate: 0.9 });
+
+    finalToastTimeoutRef.current = setTimeout(() => {
+      if (toastRunIdRef.current !== id) return;
+      setToastState(null);
+      setUndoLead(null);
+    }, 500);
   }
+
+  undoTickTimeoutRef.current = setTimeout(tick, 1000);
+}
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({
@@ -398,7 +393,7 @@ export default function Home() {
     if (error) return alert("Error deleting lead");
 
     fetchLeads();
-    showUndoToast("Lead deleted");
+showUndoToast("Lead deleted");
   }
 
   async function updateLeadName(id: string, newName: string) {
@@ -1192,37 +1187,37 @@ export default function Home() {
       </section>
 
       {toastState && (
-        <div
-          key={toastState.id}
-          className={
-            toastState.type === "undo" ? "toast undoToast" : "toast normalToast"
-          }
-        >
-          <span className="toastText">{toastState.message}</span>
+  <div
+    key={toastState.id}
+    className={
+      (toastState.type === "undo" ? "toast undoToast" : "toast normalToast")
+    }
+  >
+    <span className="toastText">{toastState.message}</span>
 
-          {toastState.type === "undo" && (
-            <button className="undoButton" onClick={undoDelete}>
-              Undo ({toastState.seconds})
-            </button>
-          )}
+    {toastState.type === "undo" && (
+      <button className="undoButton" onClick={undoDelete}>
+        Undo ({toastState.seconds})
+      </button>
+    )}
 
-          <button
-            className="toastCloseButton"
-            onClick={() => {
-              clearAllToastTimers();
-              setToastState(null);
-              setUndoLead(null);
-            }}
-            aria-label="Close notification"
-          >
-            ×
-          </button>
+    <button
+      className="toastCloseButton"
+      onClick={() => {
+        clearAllToastTimers();
+        setToastState(null);
+        setUndoLead(null);
+      }}
+      aria-label="Close notification"
+    >
+      ×
+    </button>
 
-          {toastState.type === "undo" && (
-            <div className="toastProgress" key={`progress-${toastState.id}`} />
-          )}
-        </div>
-      )}
+    {toastState.type === "undo" && (
+      <div className="toastProgress" key={`progress-${toastState.id}`} />
+    )}
+  </div>
+)}
 
       <GlobalStyles />
     </main>
@@ -1345,11 +1340,11 @@ function LeadCard({
                   updateLeadConsultant(lead.id, editConsultant);
                   setJustSaved(true);
 
-                  setTimeout(() => {
-                    setJustSaved(false);
-                  }, 1200);
+setTimeout(() => {
+  setJustSaved(false);
+}, 1200);
 
-                  setIsEditing(false);
+setIsEditing(false);
                 }}
               >
                 Save
@@ -1385,7 +1380,7 @@ function LeadCard({
         </span>
       </div>
 
-      {justSaved && <span className="saveToast">Saved ✓</span>}
+{justSaved && <span className="saveToast">Saved ✓</span>}
 
       <div className="leadActions">
         <select
