@@ -133,6 +133,9 @@ export default function Home() {
   seconds: number;
 } | null>(null);
 const [toastExiting, setToastExiting] = useState(false);
+const [toastDragX, setToastDragX] = useState(0);
+const [toastDragging, setToastDragging] = useState(false);
+const [toastStartX, setToastStartX] = useState(0);
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
@@ -1205,13 +1208,48 @@ showUndoToast("Lead deleted");
 
       {toastState && (
   <div
-    key={toastState.id}
-    className={`${
-  toastState.type === "undo"
-    ? "toast undoToast"
-    : "toast normalToast"
-} ${toastExiting ? "toastExiting" : ""}`}
-  >
+  key={toastState.id}
+  className={`${
+    toastState.type === "undo"
+      ? "toast undoToast"
+      : "toast normalToast"
+  } ${toastExiting ? "toastExiting" : ""}`}
+
+  style={{
+    "--drag-x": `${toastDragX}px`,
+  } as React.CSSProperties}
+
+  onPointerDown={(e) => {
+  e.preventDefault();
+  e.currentTarget.setPointerCapture(e.pointerId);
+  setToastDragging(true);
+  setToastStartX(e.clientX);
+}}
+
+onPointerMove={(e) => {
+  if (!toastDragging) return;
+
+  const deltaX = e.clientX - toastStartX;
+  setToastDragX(deltaX);
+}}
+
+onPointerUp={() => {
+  setToastDragging(false);
+
+  if (Math.abs(toastDragX) > 120) {
+    setToastExiting(true);
+
+    setTimeout(() => {
+      setToastState(null);
+      setToastExiting(false);
+      setUndoLead(null);
+      setToastDragX(0);
+    }, 180);
+  } else {
+    setToastDragX(0);
+  }
+}}
+>
     <span className="toastText">{toastState.message}</span>
 
     {toastState.type === "undo" && (
