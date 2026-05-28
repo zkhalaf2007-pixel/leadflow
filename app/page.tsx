@@ -82,37 +82,37 @@ export default function Home() {
     tickSoundRef.current = new Audio("/tick.mp3");
   }, []);
   function playSound(
-  soundRef: React.RefObject<HTMLAudioElement | null>,
-  options?: { volume?: number; playbackRate?: number },
-) {
-  const baseSound = soundRef.current;
-  if (!baseSound?.src) return;
+    soundRef: React.RefObject<HTMLAudioElement | null>,
+    options?: { volume?: number; playbackRate?: number },
+  ) {
+    const baseSound = soundRef.current;
+    if (!baseSound?.src) return;
 
-  const sound = new Audio(baseSound.src);
-  const targetVolume = options?.volume ?? 1;
+    const sound = new Audio(baseSound.src);
+    const targetVolume = options?.volume ?? 1;
 
-  sound.volume = 0;
-  sound.playbackRate = options?.playbackRate ?? 1;
-  sound.currentTime = 0;
+    sound.volume = 0;
+    sound.playbackRate = options?.playbackRate ?? 1;
+    sound.currentTime = 0;
 
-  sound.play().catch((error) => {
-    console.log("Sound failed:", error);
-  });
+    sound.play().catch((error) => {
+      console.log("Sound failed:", error);
+    });
 
-  let volume = 0;
+    let volume = 0;
 
-  const fadeIn = setInterval(() => {
-    volume += targetVolume / 6;
+    const fadeIn = setInterval(() => {
+      volume += targetVolume / 6;
 
-    if (volume >= targetVolume) {
-      sound.volume = targetVolume;
-      clearInterval(fadeIn);
-      return;
-    }
+      if (volume >= targetVolume) {
+        sound.volume = targetVolume;
+        clearInterval(fadeIn);
+        return;
+      }
 
-    sound.volume = volume;
-  }, 16);
-}
+      sound.volume = volume;
+    }, 16);
+  }
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
@@ -128,55 +128,61 @@ export default function Home() {
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
   const [toastState, setToastState] = useState<{
-  id: number;
-  message: string;
-  type: "normal" | "undo" | "delete" | "restore";
-  seconds: number;
-} | null>(null);
-const [addedToastStack, setAddedToastStack] = useState<
-  { id: number; message: string }[]
->([]);
-const [consultantNames, setConsultantNames] = useState<string[]>([]);
-const [addedToastDragX, setAddedToastDragX] = useState<Record<number, number>>({});
-const [exitingAddedToastIds, setExitingAddedToastIds] = useState<Set<number>>(new Set());
-const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+    id: number;
+    message: string;
+    type: "normal" | "undo" | "delete" | "restore";
+    seconds: number;
+  } | null>(null);
+  const [addedToastStack, setAddedToastStack] = useState<
+    { id: number; message: string }[]
+  >([]);
+  const [consultantNames, setConsultantNames] = useState<string[]>([]);
+  const [addedToastDragX, setAddedToastDragX] = useState<
+    Record<number, number>
+  >({});
+  const [exitingAddedToastIds, setExitingAddedToastIds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
 
-const addedToastDragStartRef = useRef<
-  Record<number, {
-    startClientX: number;
-    startDragX: number;
-    currentX: number;
-    minX: number;
-    maxX: number;
-    startLeft: number;
-    startRight: number;
-  }>
->({});
-const [toastExiting, setToastExiting] = useState(false);
-const [toastDragX, setToastDragX] = useState(0);
-const [toastDragging, setToastDragging] = useState(false);
-const [toastStartX, setToastStartX] = useState(0);
-const toastDragBoundsRef = useRef({
-  minX: 0,
-  maxX: 0,
-  startLeft: 0,
-  startRight: 0,
-});
+  const addedToastDragStartRef = useRef<
+    Record<
+      number,
+      {
+        startClientX: number;
+        startDragX: number;
+        currentX: number;
+        minX: number;
+        maxX: number;
+        startLeft: number;
+        startRight: number;
+      }
+    >
+  >({});
+  const [toastExiting, setToastExiting] = useState(false);
+  const [toastDragX, setToastDragX] = useState(0);
+  const [toastDragging, setToastDragging] = useState(false);
+  const [toastStartX, setToastStartX] = useState(0);
+  const toastDragBoundsRef = useRef({
+    minX: 0,
+    maxX: 0,
+    startLeft: 0,
+    startRight: 0,
+  });
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
   const [consultantToDelete, setConsultantToDelete] = useState("");
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastRunIdRef = useRef(0);
-const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastClearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const finalPlayedRef = useRef(false);
   const countdownSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-const [undoLeads, setUndoLeads] = useState<Lead[]>([]);
+  const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [undoLeads, setUndoLeads] = useState<Lead[]>([]);
   function stopUndoSequence() {
-
     if (toastTimerRef.current) {
       clearInterval(toastTimerRef.current);
       clearTimeout(toastTimerRef.current);
@@ -204,155 +210,152 @@ const [undoLeads, setUndoLeads] = useState<Lead[]>([]);
     }
 
     if (countdownSoundTimeoutRef.current) {
-  clearTimeout(countdownSoundTimeoutRef.current);
-  countdownSoundTimeoutRef.current = null;
-}
+      clearTimeout(countdownSoundTimeoutRef.current);
+      countdownSoundTimeoutRef.current = null;
+    }
 
-if (finalToastTimeoutRef.current) {
-  clearTimeout(finalToastTimeoutRef.current);
-  finalToastTimeoutRef.current = null;
-}
+    if (finalToastTimeoutRef.current) {
+      clearTimeout(finalToastTimeoutRef.current);
+      finalToastTimeoutRef.current = null;
+    }
 
-if (undoTickTimeoutRef.current) {
-  clearTimeout(undoTickTimeoutRef.current);
-  undoTickTimeoutRef.current = null;
-}
+    if (undoTickTimeoutRef.current) {
+      clearTimeout(undoTickTimeoutRef.current);
+      undoTickTimeoutRef.current = null;
+    }
     setUndoSeconds(0);
   }
 
-function clearAllToastTimers() {
-  toastRunIdRef.current += 1;
+  function clearAllToastTimers() {
+    toastRunIdRef.current += 1;
 
-  if (toastTimerRef.current) clearInterval(toastTimerRef.current);
-  if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
-  if (countdownSoundTimeoutRef.current) clearTimeout(countdownSoundTimeoutRef.current);
-  if (finalToastTimeoutRef.current) clearTimeout(finalToastTimeoutRef.current);
-  if (undoTickTimeoutRef.current)
-  clearTimeout(undoTickTimeoutRef.current);
+    if (toastTimerRef.current) clearInterval(toastTimerRef.current);
+    if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
+    if (countdownSoundTimeoutRef.current)
+      clearTimeout(countdownSoundTimeoutRef.current);
+    if (finalToastTimeoutRef.current)
+      clearTimeout(finalToastTimeoutRef.current);
+    if (undoTickTimeoutRef.current) clearTimeout(undoTickTimeoutRef.current);
 
-  toastTimerRef.current = null;
-  normalToastTimerRef.current = null;
-  countdownSoundTimeoutRef.current = null;
-  finalToastTimeoutRef.current = null;
-  undoTickTimeoutRef.current = null;
-  finalPlayedRef.current = false;
-}
-
-  function showToast(
-  message: string,
-  type: "normal" | "undo" | "delete" | "restore" = "normal"
-) {
-  clearAllToastTimers();
-
-  const id = toastRunIdRef.current + 1;
-  toastRunIdRef.current = id;
-
-  setToastExiting(false);
-  setToastDragX(0);
-
-  setToastState({
-  id,
-  message,
-  type,
-  seconds: 5,
-});
-
-  playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
-
-  normalToastTimerRef.current = setTimeout(() => {
-  if (toastRunIdRef.current !== id) return;
-
-  // 🔥 Step 1: trigger exit animation
-  setToastExiting(true);
-
-  // 🔊 Step 2: play exit sound
-  playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
-
-  // ⏱ Step 3: remove after animation
-  setTimeout(() => {
-    if (toastRunIdRef.current !== id) return;
-    setToastState(null);
-    setToastExiting(false);
-  }, 220);
-
-}, 5000);
-}
-function showAddedToast(message: string) {
-  const id = Date.now();
-
-  setAddedToastStack((prev) => [
-  ...prev,
-  { id, message },
-].slice(-5));
-
-  playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
-}
-
-function dismissAddedToast(id: number) {
-  setExitingAddedToastIds((prev) => {
-    const next = new Set(prev);
-    next.add(id);
-    return next;
-  });
-  playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
-
-  setTimeout(() => {
-    setAddedToastStack((prev) => prev.filter((t) => t.id !== id));
-
-    setAddedToastDragX((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-
-    setExitingAddedToastIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, 220);
-}
-
-  function showUndoToast(message: string) {
-  clearAllToastTimers();
-
-  const id = toastRunIdRef.current;
-  let secondsLeft = 5;
-
-  setToastDragX(0);
-  setToastState({ id, message, type: "undo", seconds: secondsLeft });
-  playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
-
-  function tick() {
-    if (toastRunIdRef.current !== id) return;
-
-    secondsLeft -= 1;
-
-    setToastState({ id, message, type: "undo", seconds: secondsLeft });
-
-    if (secondsLeft > 0) {
-      playSound(tickSoundRef, { volume: 0.1, playbackRate: 1 });
-
-      countdownSoundTimeoutRef.current = setTimeout(() => {
-        if (toastRunIdRef.current !== id) return;
-        playSound(countdownSoundRef, { volume: 0.32, playbackRate: 1.03 });
-      }, 40);
-
-      undoTickTimeoutRef.current = setTimeout(tick, 1000);
-      return;
-    }
-
-    playSound(finalSoundRef, { volume: 0.2, playbackRate: 0.9 });
-
-    finalToastTimeoutRef.current = setTimeout(() => {
-      if (toastRunIdRef.current !== id) return;
-      setToastState(null);
-      setUndoLead(null);
-    }, 500);
+    toastTimerRef.current = null;
+    normalToastTimerRef.current = null;
+    countdownSoundTimeoutRef.current = null;
+    finalToastTimeoutRef.current = null;
+    undoTickTimeoutRef.current = null;
+    finalPlayedRef.current = false;
   }
 
-  undoTickTimeoutRef.current = setTimeout(tick, 1000);
-}
+  function showToast(
+    message: string,
+    type: "normal" | "undo" | "delete" | "restore" = "normal",
+  ) {
+    clearAllToastTimers();
+
+    const id = toastRunIdRef.current + 1;
+    toastRunIdRef.current = id;
+
+    setToastExiting(false);
+    setToastDragX(0);
+
+    setToastState({
+      id,
+      message,
+      type,
+      seconds: 5,
+    });
+
+    playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
+
+    normalToastTimerRef.current = setTimeout(() => {
+      if (toastRunIdRef.current !== id) return;
+
+      // 🔥 Step 1: trigger exit animation
+      setToastExiting(true);
+
+      // 🔊 Step 2: play exit sound
+      playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
+
+      // ⏱ Step 3: remove after animation
+      setTimeout(() => {
+        if (toastRunIdRef.current !== id) return;
+        setToastState(null);
+        setToastExiting(false);
+      }, 220);
+    }, 5000);
+  }
+  function showAddedToast(message: string) {
+    const id = Date.now();
+
+    setAddedToastStack((prev) => [...prev, { id, message }].slice(-5));
+
+    playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
+  }
+
+  function dismissAddedToast(id: number) {
+    setExitingAddedToastIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
+
+    setTimeout(() => {
+      setAddedToastStack((prev) => prev.filter((t) => t.id !== id));
+
+      setAddedToastDragX((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+
+      setExitingAddedToastIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 220);
+  }
+
+  function showUndoToast(message: string) {
+    clearAllToastTimers();
+
+    const id = toastRunIdRef.current;
+    let secondsLeft = 5;
+
+    setToastDragX(0);
+    setToastState({ id, message, type: "undo", seconds: secondsLeft });
+    playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
+
+    function tick() {
+      if (toastRunIdRef.current !== id) return;
+
+      secondsLeft -= 1;
+
+      setToastState({ id, message, type: "undo", seconds: secondsLeft });
+
+      if (secondsLeft > 0) {
+        playSound(tickSoundRef, { volume: 0.1, playbackRate: 1 });
+
+        countdownSoundTimeoutRef.current = setTimeout(() => {
+          if (toastRunIdRef.current !== id) return;
+          playSound(countdownSoundRef, { volume: 0.32, playbackRate: 1.03 });
+        }, 40);
+
+        undoTickTimeoutRef.current = setTimeout(tick, 1000);
+        return;
+      }
+
+      playSound(finalSoundRef, { volume: 0.2, playbackRate: 0.9 });
+
+      finalToastTimeoutRef.current = setTimeout(() => {
+        if (toastRunIdRef.current !== id) return;
+        setToastState(null);
+        setUndoLead(null);
+      }, 500);
+    }
+
+    undoTickTimeoutRef.current = setTimeout(tick, 1000);
+  }
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({
@@ -418,8 +421,8 @@ function dismissAddedToast(id: number) {
     }
 
     const { error } = await supabase.from("consultants").insert({
-  name: cleanName,
-});
+      name: cleanName,
+    });
 
     if (error) return alert("Error adding consultant");
 
@@ -429,21 +432,21 @@ function dismissAddedToast(id: number) {
   }
 
   async function deleteConsultant(name: string) {
-  const { error } = await supabase
-    .from("consultants")
-    .delete()
-    .eq("name", name);
+    const { error } = await supabase
+      .from("consultants")
+      .delete()
+      .eq("name", name);
 
-  if (error) {
-    console.error("Error deleting consultant:", error);
-    return alert("Error deleting consultant");
+    if (error) {
+      console.error("Error deleting consultant:", error);
+      return alert("Error deleting consultant");
+    }
+
+    // 🔑 Wait for fresh data from DB ONLY
+    await fetchConsultants();
+
+    showToast("Consultant removed", "delete");
   }
-
-  // 🔑 Wait for fresh data from DB ONLY
-  await fetchConsultants();
-
-  showToast("Consultant removed", "delete");
-}
   async function fetchLeads() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -458,19 +461,19 @@ function dismissAddedToast(id: number) {
     setLeads(data || []);
   }
 
-async function fetchConsultants() {
-  const { data, error } = await supabase
-    .from("consultants")
-    .select("name")
-    .order("name", { ascending: true });
+  async function fetchConsultants() {
+    const { data, error } = await supabase
+      .from("consultants")
+      .select("name")
+      .order("name", { ascending: true });
 
-  if (error) {
-    console.error("Error fetching consultants:", error);
-    return;
+    if (error) {
+      console.error("Error fetching consultants:", error);
+      return;
+    }
+
+    setConsultantNames(data.map((c) => c.name));
   }
-
-  setConsultantNames(data.map((c) => c.name));
-}
 
   async function addLead() {
     const cleanName = name.trim();
@@ -502,7 +505,7 @@ async function fetchConsultants() {
     setStatus("New");
 
     fetchLeads();
-    showAddedToast("Lead added successfully")
+    showAddedToast("Lead added successfully");
   }
 
   async function deleteLead(lead: Lead) {
@@ -513,7 +516,7 @@ async function fetchConsultants() {
     if (error) return alert("Error deleting lead");
 
     fetchLeads();
-showUndoToast("Lead deleted");
+    showUndoToast("Lead deleted");
   }
 
   async function updateLeadName(id: string, newName: string) {
@@ -570,18 +573,18 @@ showUndoToast("Lead deleted");
 
   async function undoDelete() {
     stopUndoSequence();
-if (undoLeads.length > 0) {
-  const { error } = await supabase.from("leads").insert(undoLeads);
+    if (undoLeads.length > 0) {
+      const { error } = await supabase.from("leads").insert(undoLeads);
 
-  if (error) return alert("Error restoring leads");
+      if (error) return alert("Error restoring leads");
 
-  setUndoLeads([]);
-  setUndoLead(null);
-  setUndoSeconds(0);
-  fetchLeads();
-  showToast(`${undoLeads.length} leads restored`, "restore");
-  return;
-}
+      setUndoLeads([]);
+      setUndoLead(null);
+      setUndoSeconds(0);
+      fetchLeads();
+      showToast(`${undoLeads.length} leads restored`, "restore");
+      return;
+    }
     if (!undoLead) return;
 
     const { error } = await supabase.from("leads").insert(undoLead);
@@ -1050,11 +1053,11 @@ if (undoLeads.length > 0) {
                     onChange={(e) => setConsultantToDelete(e.target.value)}
                   >
                     <option value="">Select consultant...</option>
-{consultantNames.map((name) => (
-  <option key={name} value={name}>
-    {name}
-  </option>
-))}
+                    {consultantNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
                   </select>
 
                   <button
@@ -1128,11 +1131,11 @@ if (undoLeads.length > 0) {
               }}
             >
               <option value="">Select Consultant</option>
-{consultantNames.map((name) => (
-  <option key={name} value={name}>
-    {name}
-  </option>
-))}
+              {consultantNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
 
             <input
@@ -1245,17 +1248,17 @@ if (undoLeads.length > 0) {
           {followUps.length === 0 && <p>No urgent leads 🎉</p>}
 
           {followUps.map((lead: Lead) => (
-  <LeadCard
-    key={lead.id}
-    lead={lead}
-    selected={selectedLeadIds.includes(lead.id)}
-    onToggleSelected={() => {
-      setSelectedLeadIds((prev) =>
-        prev.includes(lead.id)
-          ? prev.filter((id) => id !== lead.id)
-          : [...prev, lead.id]
-      );
-    }}
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              selected={selectedLeadIds.includes(lead.id)}
+              onToggleSelected={() => {
+                setSelectedLeadIds((prev) =>
+                  prev.includes(lead.id)
+                    ? prev.filter((id) => id !== lead.id)
+                    : [...prev, lead.id],
+                );
+              }}
               updateStatus={updateStatus}
               markContacted={markContacted}
               openWhatsApp={openWhatsApp}
@@ -1286,607 +1289,712 @@ if (undoLeads.length > 0) {
         <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>All Leads</h2>
 
-          <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center" }}>
-  
-  <input
-    type="checkbox"
-    checked={selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0}
-    onChange={(e) => {
-      if (e.target.checked) {
-        setSelectedLeadIds(filteredLeads.map((l) => l.id));
-      } else {
-        setSelectedLeadIds([]);
-      }
-    }}
-    style={{
-      width: "18px",
-      height: "18px",
-      cursor: "pointer",
-    }}
-  />
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginBottom: 12,
+              alignItems: "center",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={
+                selectedLeadIds.length === filteredLeads.length &&
+                filteredLeads.length > 0
+              }
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedLeadIds(filteredLeads.map((l) => l.id));
+                } else {
+                  setSelectedLeadIds([]);
+                }
+              }}
+              style={{
+                width: "18px",
+                height: "18px",
+                cursor: "pointer",
+              }}
+            />
 
-  <span style={{ fontSize: "14px", opacity: 0.8 }}>
-    Select All
-  </span>
+            <span style={{ fontSize: "14px", opacity: 0.8 }}>Select All</span>
 
-  <input
-    placeholder="Search..."
-    value={searchTerm}
-    onChange={(e) => setSearchTerm(e.target.value)}
-    style={{ flex: 1 }}
-  />
+            <input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ flex: 1 }}
+            />
 
-  <select
-    value={statusFilter}
-    onChange={(e) => setStatusFilter(e.target.value)}
-  >
-    <option value="All">All</option>
-    {STATUS_OPTIONS.map((s) => (
-      <option key={s} value={s}>
-        {s}
-      </option>
-    ))}
-  </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
 
-</div>
+          {selectedLeadIds.length > 0 && (
+            <button
+              className="dangerButton"
+              style={{
+                position: "fixed",
+                right: "24px",
+                bottom: "24px",
+                zIndex: 50,
+                padding: "10px 16px",
+                borderRadius: "10px",
+                boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+                fontWeight: 700,
+              }}
+              onClick={async () => {
+                const leadsToDelete = filteredLeads.filter((lead) =>
+                  selectedLeadIds.includes(lead.id),
+                );
 
-{selectedLeadIds.length > 0 && (
-  <button
-    className="dangerButton"
-    style={{
-  position: "fixed",
-  right: "24px",
-  bottom: "24px",
-  zIndex: 50,
-  padding: "10px 16px",
-  borderRadius: "10px",
-  boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
-  fontWeight: 700,
-}}
-    onClick={async () => {
-  const leadsToDelete = filteredLeads.filter((lead) =>
-    selectedLeadIds.includes(lead.id)
-  );
+                const { error } = await supabase
+                  .from("leads")
+                  .delete()
+                  .in("id", selectedLeadIds);
 
-  const { error } = await supabase
-    .from("leads")
-    .delete()
-    .in("id", selectedLeadIds);
+                if (error) return alert("Error deleting selected leads");
 
-  if (error) return alert("Error deleting selected leads");
+                setUndoLeads(leadsToDelete);
+                setUndoLead(null);
 
-  setUndoLeads(leadsToDelete);
-  setUndoLead(null);
+                setLeads((prev) =>
+                  prev.filter((lead) => !selectedLeadIds.includes(lead.id)),
+                );
 
-  setLeads((prev) =>
-    prev.filter((lead) => !selectedLeadIds.includes(lead.id))
-  );
-
-  showUndoToast(`${leadsToDelete.length} leads deleted`);
-  setSelectedLeadIds([]);
-}}
-  >
-    Delete {selectedLeadIds.length} selected
-  </button>
-)}
+                showUndoToast(`${leadsToDelete.length} leads deleted`);
+                setSelectedLeadIds([]);
+              }}
+            >
+              Delete {selectedLeadIds.length} selected
+            </button>
+          )}
 
           {filteredLeads.map((lead: Lead) => (
             <LeadCard
-  key={lead.id}
-  lead={lead}
-  selected={selectedLeadIds.includes(lead.id)}
-  onToggleSelected={() => {
-    setSelectedLeadIds((prev) =>
-      prev.includes(lead.id)
-        ? prev.filter((id) => id !== lead.id)
-        : [...prev, lead.id]
-    );
-  }}
-  updateStatus={updateStatus}
-  markContacted={markContacted}
-  openWhatsApp={openWhatsApp}
-  deleteLead={deleteLead}
-  updateLeadName={updateLeadName}
-  updateLeadPhone={updateLeadPhone}
-  updateLeadConsultant={updateLeadConsultant}
-  consultantNames={consultantNames}
-/>
+              key={lead.id}
+              lead={lead}
+              selected={selectedLeadIds.includes(lead.id)}
+              onToggleSelected={() => {
+                setSelectedLeadIds((prev) =>
+                  prev.includes(lead.id)
+                    ? prev.filter((id) => id !== lead.id)
+                    : [...prev, lead.id],
+                );
+              }}
+              updateStatus={updateStatus}
+              markContacted={markContacted}
+              openWhatsApp={openWhatsApp}
+              deleteLead={deleteLead}
+              updateLeadName={updateLeadName}
+              updateLeadPhone={updateLeadPhone}
+              updateLeadConsultant={updateLeadConsultant}
+              consultantNames={consultantNames}
+            />
           ))}
         </section>
       </section>
-<div
-  style={{
-  position: "fixed",
-  left: "50%",
-  marginLeft: "160px",
-  bottom: toastState ? "132px" : "32px",
-  transform: "translateX(-50%)",
-  width: "320px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: "12px",
-  zIndex: 9998,
-  pointerEvents: "none",
-}}
->
-
-  {addedToastStack.map((toast, index) => (
-    <div
-      key={toast.id}
-      style={{
-  width: "fit-content",
-  display: "inline-block",
-  transform: `translateY(${exitingAddedToastIds.has(toast.id) ? 0 : 6}px) translateX(${addedToastDragX[toast.id] || 0}px) scale(${addedToastDragX[toast.id] ? 0.985 : 1})`,
-  opacity: exitingAddedToastIds.has(toast.id) ? 0 : 1,
-  transition: addedToastDragX[toast.id]
-  ? "none"
-  : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
-willChange: "transform, opacity",
-backfaceVisibility: "hidden",
-WebkitBackfaceVisibility: "hidden",
-  pointerEvents: "auto",
-  touchAction: "none",
-  userSelect: "none",
-  WebkitUserSelect: "none",
-  cursor: "default",
-}}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        (document.activeElement as HTMLElement | null)?.blur();
-document.body.classList.add("toastDraggingActive");
-        e.currentTarget.setPointerCapture(e.pointerId);
-        document.body.style.userSelect = "none";
-document.body.style.webkitUserSelect = "none";
-
-        const card = e.currentTarget.firstElementChild as HTMLElement | null;
-const rect = (card ?? e.currentTarget).getBoundingClientRect();
-const startDragX = addedToastDragX[toast.id] || 0;
-
-addedToastDragStartRef.current[toast.id] = {
-  startClientX: e.clientX,
-  startDragX,
-  currentX: startDragX,
-  minX: startDragX - rect.left,
-  maxX: startDragX + (window.innerWidth - rect.right),
-  startLeft: rect.left,
-  startRight: rect.right,
-};
-      }}
-      
-      onPointerMove={(e) => {
-        const data = addedToastDragStartRef.current[toast.id];
-        if (!data) return;
-        e.preventDefault();
-e.stopPropagation();
-
-        const rawDelta = data.startDragX + (e.clientX - data.startClientX);
-const delta = Math.max(data.minX, Math.min(data.maxX, rawDelta));
-const hitLeftEdge = data.startLeft + rawDelta <= 0;
-const hitRightEdge = data.startRight + rawDelta >= window.innerWidth;
-
-if (hitLeftEdge || hitRightEdge) {
-  dismissAddedToast(toast.id);
-  delete addedToastDragStartRef.current[toast.id];
-  return;
-}
-data.currentX = delta;
-window.getSelection()?.removeAllRanges();
-
-        setAddedToastDragX((prev) => ({
-          ...prev,
-          [toast.id]: delta,
-        }));
-      }}
-      onPointerUp={(e) => {
-        document.body.classList.remove("toastDraggingActive");
-        document.body.style.userSelect = "";
-document.body.style.webkitUserSelect = "";
-setToastDragging(false);
-setToastDragX(0);
-setToastStartX(0);
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-        }
-
-        const delta = addedToastDragX[toast.id] || 0;
-
-        delete addedToastDragStartRef.current[toast.id];
-
-        setAddedToastDragX((prev) => ({
-  ...prev,
-  [toast.id]: 0,
-}));
-      }}
-
-onPointerCancel={() => {
-  document.body.classList.remove("toastDraggingActive");
-  document.body.style.userSelect = "";
-  document.body.style.webkitUserSelect = "";
-  setToastDragging(false);
-setToastDragX(0);
-setToastStartX(0);
-delete addedToastDragStartRef.current[toast.id];
-}}
-    >
       <div
-  className="toast normalToast"
-  style={{
-  position: "relative",
-  top: "auto",
-  left: "auto",
-  right: "auto",
-  bottom: "auto",
-  transform: "none",
-  width: "320px",
-  height: "56px",
-  padding: "10px 18px",
-  boxSizing: "border-box",
-  boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-}}
->
-        <div
-  style={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    width: "100%",
-  }}
->
-          <span>{toast.message}</span>
+        style={{
+          position: "fixed",
+          left: "50%",
+          marginLeft: "160px",
+          bottom: toastState ? "132px" : "32px",
+          transform: "translateX(-50%)",
+          width: "320px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "12px",
+          zIndex: 9998,
+          pointerEvents: "none",
+        }}
+      >
+        {addedToastStack.map((toast, index) => (
+          <div
+            key={toast.id}
+            style={{
+              width: "fit-content",
+              display: "inline-block",
+              transform: `translateY(${exitingAddedToastIds.has(toast.id) ? 0 : 6}px) translateX(${addedToastDragX[toast.id] || 0}px) scale(${addedToastDragX[toast.id] ? 0.985 : 1})`,
+              opacity: exitingAddedToastIds.has(toast.id) ? 0 : 1,
+              transition: addedToastDragX[toast.id]
+                ? "none"
+                : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
+              willChange: "transform, opacity",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+              pointerEvents: "auto",
+              touchAction: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              cursor: "default",
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              (document.activeElement as HTMLElement | null)?.blur();
+              document.body.classList.add("toastDraggingActive");
+              e.currentTarget.setPointerCapture(e.pointerId);
+              document.body.style.userSelect = "none";
+              document.body.style.webkitUserSelect = "none";
 
-          <button
-  className="toastCloseButton"
-  onPointerDown={(e) => e.stopPropagation()}
-  onClick={(e) => {
-    e.stopPropagation();
-    e.preventDefault(); // 👈 ADD THIS
-    dismissAddedToast(toast.id);
-  }}
->
-  ×
-</button>
-        </div>
+              const card = e.currentTarget
+                .firstElementChild as HTMLElement | null;
+              const rect = (card ?? e.currentTarget).getBoundingClientRect();
+              const startDragX = addedToastDragX[toast.id] || 0;
+
+              addedToastDragStartRef.current[toast.id] = {
+                startClientX: e.clientX,
+                startDragX,
+                currentX: startDragX,
+                minX: startDragX - rect.left,
+                maxX: startDragX + (window.innerWidth - rect.right),
+                startLeft: rect.left,
+                startRight: rect.right,
+              };
+            }}
+            onPointerMove={(e) => {
+              const data = addedToastDragStartRef.current[toast.id];
+              if (!data) return;
+              e.preventDefault();
+              e.stopPropagation();
+
+              const rawDelta =
+                data.startDragX + (e.clientX - data.startClientX);
+              const delta = Math.max(data.minX, Math.min(data.maxX, rawDelta));
+              const hitLeftEdge = data.startLeft + rawDelta <= 0;
+              const hitRightEdge =
+                data.startRight + rawDelta >= window.innerWidth;
+
+              if (hitLeftEdge || hitRightEdge) {
+                dismissAddedToast(toast.id);
+                delete addedToastDragStartRef.current[toast.id];
+                return;
+              }
+              data.currentX = delta;
+              window.getSelection()?.removeAllRanges();
+
+              setAddedToastDragX((prev) => ({
+                ...prev,
+                [toast.id]: delta,
+              }));
+            }}
+            onPointerUp={(e) => {
+              document.body.classList.remove("toastDraggingActive");
+              document.body.style.userSelect = "";
+              document.body.style.webkitUserSelect = "";
+              setToastDragging(false);
+              setToastDragX(0);
+              setToastStartX(0);
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }
+
+              const delta = addedToastDragX[toast.id] || 0;
+
+              delete addedToastDragStartRef.current[toast.id];
+
+              setAddedToastDragX((prev) => ({
+                ...prev,
+                [toast.id]: 0,
+              }));
+            }}
+            onPointerCancel={() => {
+              document.body.classList.remove("toastDraggingActive");
+              document.body.style.userSelect = "";
+              document.body.style.webkitUserSelect = "";
+              setToastDragging(false);
+              setToastDragX(0);
+              setToastStartX(0);
+              delete addedToastDragStartRef.current[toast.id];
+            }}
+          >
+            <div
+              className="toast normalToast"
+              style={{
+                position: "relative",
+                top: "auto",
+                left: "auto",
+                right: "auto",
+                bottom: "auto",
+                transform: "none",
+                width: "320px",
+                height: "56px",
+                padding: "10px 18px",
+                boxSizing: "border-box",
+                boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  width: "100%",
+                }}
+              >
+                <span>{toast.message}</span>
+
+                <button
+                  className="toastCloseButton"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault(); // 👈 ADD THIS
+                    dismissAddedToast(toast.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
-  ))}
-</div>
       {toastState && (
         <div
-  style={{
-    position: "fixed",
-    left: "50%",
-    bottom: "32px",
-    transform: "translateX(-50%)",
-    zIndex: 9999,
-    pointerEvents: "auto",
-  }}
->
-  <div
-  onPointerDown={(e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  (document.activeElement as HTMLElement | null)?.blur();
-document.body.classList.add("toastDraggingActive");
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: "32px",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            pointerEvents: "auto",
+          }}
+        >
+          <div
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              (document.activeElement as HTMLElement | null)?.blur();
+              document.body.classList.add("toastDraggingActive");
 
-  setToastDragging(true);
-  document.body.style.userSelect = "none";
-document.body.style.webkitUserSelect = "none";
+              setToastDragging(true);
+              document.body.style.userSelect = "none";
+              document.body.style.webkitUserSelect = "none";
 
-  e.currentTarget.setPointerCapture(e.pointerId);
-  setToastStartX(e.clientX - toastDragX);
-  const card = e.currentTarget.firstElementChild as HTMLElement | null;
-const rect = (card ?? e.currentTarget).getBoundingClientRect();
-const startDragX = toastDragX;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setToastStartX(e.clientX - toastDragX);
+              const card = e.currentTarget
+                .firstElementChild as HTMLElement | null;
+              const rect = (card ?? e.currentTarget).getBoundingClientRect();
+              const startDragX = toastDragX;
 
-toastDragBoundsRef.current = {
-  minX: startDragX - rect.left,
-  maxX: startDragX + (window.innerWidth - rect.right),
-  startLeft: rect.left,
-  startRight: rect.right,
-};
-}}
+              toastDragBoundsRef.current = {
+                minX: startDragX - rect.left,
+                maxX: startDragX + (window.innerWidth - rect.right),
+                startLeft: rect.left,
+                startRight: rect.right,
+              };
+            }}
+            onPointerMove={(e) => {
+              if (!toastDragging) return;
 
-onPointerMove={(e) => {
-  if (!toastDragging) return;
+              e.preventDefault();
+              e.stopPropagation();
 
-  e.preventDefault();
-  e.stopPropagation();
+              const rawNextX = e.clientX - toastStartX;
+              const nextX = Math.max(
+                toastDragBoundsRef.current.minX,
+                Math.min(toastDragBoundsRef.current.maxX, rawNextX),
+              );
+              const hitLeftEdge =
+                toastDragBoundsRef.current.startLeft + rawNextX <= 0;
+              const hitRightEdge =
+                toastDragBoundsRef.current.startRight + rawNextX >=
+                window.innerWidth;
 
-  const rawNextX = e.clientX - toastStartX;
-const nextX = Math.max(
-  toastDragBoundsRef.current.minX,
-  Math.min(toastDragBoundsRef.current.maxX, rawNextX)
-);
-const hitLeftEdge = toastDragBoundsRef.current.startLeft + rawNextX <= 0;
-const hitRightEdge =
-  toastDragBoundsRef.current.startRight + rawNextX >= window.innerWidth;
+              if (hitLeftEdge || hitRightEdge) {
+                stopUndoSequence();
+                setToastState(null);
+                setUndoLead(null);
+                setUndoSeconds(0);
+                setToastDragX(0);
+                setToastDragging(false);
+                return;
+              }
 
-if (hitLeftEdge || hitRightEdge) {
-  stopUndoSequence();
-  setToastState(null);
-  setUndoLead(null);
-  setUndoSeconds(0);
-  setToastDragX(0);
-  setToastDragging(false);
-  return;
-}
+              window.getSelection()?.removeAllRanges();
+              setToastDragX(nextX);
+            }}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              document.body.classList.remove("toastDraggingActive");
 
-window.getSelection()?.removeAllRanges();
-  setToastDragX(nextX);
-}}
+              setToastDragging(false);
+              document.body.style.userSelect = "";
+              document.body.style.webkitUserSelect = "";
 
-onPointerUp={(e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  document.body.classList.remove("toastDraggingActive");
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+              }
 
-  setToastDragging(false);
-  document.body.style.userSelect = "";
-  document.body.style.webkitUserSelect = "";
+              const finalX = e.clientX - toastStartX;
 
-  if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  }
+              setToastDragX(0);
+            }}
+            onPointerCancel={() => {
+              document.body.classList.remove("toastDraggingActive");
+              setToastDragging(false);
+              document.body.style.userSelect = "";
+              document.body.style.webkitUserSelect = "";
+              setToastDragX(0);
+            }}
+            style={{
+              transform: `translateY(${toastDragging ? 0 : 6}px) translateX(${toastDragX}px) scale(${toastDragging ? 0.985 : 1})`,
+              transition: toastDragging
+                ? "none"
+                : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
+              willChange: "transform, opacity",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+              pointerEvents: "auto",
+              touchAction: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              cursor: toastDragging ? "grabbing" : "grab",
+            }}
+          >
+            <div
+              className={`${
+                toastState.type === "undo"
+                  ? "toast undoToast"
+                  : "toast normalToast"
+              } ${toastExiting ? "toastExiting" : ""}`}
+              style={
+                {
+                  zIndex: 9999,
+                  boxSizing: "border-box",
+                  boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  ...(toastState.message === "Lead restored"
+                    ? {
+                        width: "fit-content",
+                        height: "48px",
+                        padding: "10px 18px",
+                      }
+                    : {
+                        background:
+                          toastState?.type === "delete"
+                            ? "rgba(220, 38, 38, 0.12)" // soft red
+                            : toastState?.type === "restore"
+                              ? "rgba(34, 197, 94, 0.12)" // soft green
+                              : toastState?.type === "undo"
+                                ? "#111" // keep neutral for undo
+                                : "#111",
+                        width: "320px",
+                        color:
+                          toastState?.type === "delete"
+                            ? "#ef4444"
+                            : toastState?.type === "restore"
+                              ? "#22c55e"
+                              : "#fff",
+                        border:
+                          toastState?.type === "delete"
+                            ? "1px solid rgba(220, 38, 38, 0.25)"
+                            : toastState?.type === "restore"
+                              ? "1px solid rgba(34, 197, 94, 0.25)"
+                              : "1px solid rgba(255,255,255,0.06)",
+                        height: "56px",
+                        padding: "10px 18px",
+                      }),
+                } as React.CSSProperties
+              }
+            >
+              <span
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <span>
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      lineHeight: 0,
+                      opacity: 0.9,
+                      transform: "scale(0.95)",
+                    }}
+                  >
+                    {toastState.type === "delete" && (
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <defs>
+                          <linearGradient
+                            id="trashGlow"
+                            x1="4"
+                            y1="3"
+                            x2="20"
+                            y2="21"
+                          >
+                            <stop stopColor="#ff6b6b" />
+                            <stop offset="1" stopColor="#dc2626" />
+                          </linearGradient>
+                        </defs>
 
-  const finalX = e.clientX - toastStartX;
+                        <rect
+                          x="5"
+                          y="7"
+                          width="14"
+                          height="14"
+                          rx="3"
+                          fill="url(#trashGlow)"
+                        />
+                        <path
+                          d="M9 7V5.5C9 4.7 9.7 4 10.5 4H13.5C14.3 4 15 4.7 15 5.5V7"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M4 7H20"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M10 11V17"
+                          stroke="white"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          opacity="0.9"
+                        />
+                        <path
+                          d="M14 11V17"
+                          stroke="white"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          opacity="0.9"
+                        />
+                        <circle cx="18" cy="6" r="3" fill="#fde047" />
+                        <path
+                          d="M17.2 6L17.8 6.6L19 5.3"
+                          stroke="#111827"
+                          strokeWidth="1.3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
 
-  setToastDragX(0);
-}}
+                    {toastState.type === "restore" && (
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <defs>
+                          <linearGradient
+                            id="restoreGlow"
+                            x1="4"
+                            y1="4"
+                            x2="20"
+                            y2="20"
+                          >
+                            <stop stopColor="#38bdf8" />
+                            <stop offset="1" stopColor="#2563eb" />
+                          </linearGradient>
+                        </defs>
 
-onPointerCancel={() => {
-  document.body.classList.remove("toastDraggingActive");
-  setToastDragging(false);
-  document.body.style.userSelect = "";
-  document.body.style.webkitUserSelect = "";
-  setToastDragX(0);
-}}
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="9"
+                          fill="url(#restoreGlow)"
+                        />
 
-style={{
-  transform: `translateY(${toastDragging ? 0 : 6}px) translateX(${toastDragX}px) scale(${toastDragging ? 0.985 : 1})`,
-  transition: toastDragging
-  ? "none"
-  : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
-willChange: "transform, opacity",
-backfaceVisibility: "hidden",
-WebkitBackfaceVisibility: "hidden",
-  pointerEvents: "auto",
-  touchAction: "none",
-  userSelect: "none",
-  WebkitUserSelect: "none",
-  cursor: toastDragging ? "grabbing" : "grab",
-}}
->
-  <div
-  className={`${
-    toastState.type === "undo"
-      ? "toast undoToast"
-      : "toast normalToast"
-  } ${toastExiting ? "toastExiting" : ""}`}
+                        <path
+                          d="M8.5 10.2H6.2V7.9"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
 
-  style={{
-  zIndex: 9999,
-  boxSizing: "border-box",
-  boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  ...(toastState.message === "Lead restored"
-  ? {
-      width: "fit-content",
-      height: "48px",
-      padding: "10px 18px",
-    }
-  : {
-    background:
-  toastState?.type === "delete"
-    ? "rgba(220, 38, 38, 0.12)"   // soft red
-    : toastState?.type === "restore"
-    ? "rgba(34, 197, 94, 0.12)"   // soft green
-    : toastState?.type === "undo"
-    ? "#111"                      // keep neutral for undo
-    : "#111",
-      width: "320px",
-      color:
-  toastState?.type === "delete"
-    ? "#ef4444"
-    : toastState?.type === "restore"
-    ? "#22c55e"
-    : "#fff",
-      border:
-  toastState?.type === "delete"
-    ? "1px solid rgba(220, 38, 38, 0.25)"
-    : toastState?.type === "restore"
-    ? "1px solid rgba(34, 197, 94, 0.25)"
-    : "1px solid rgba(255,255,255,0.06)",
-      height: "56px",
-      padding: "10px 18px",
-    }),
-} as React.CSSProperties}
+                        <path
+                          d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12C17.8 15.2 15.2 17.8 12 17.8C9.9 17.8 8.1 16.7 7.1 15"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
 
->
-    <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-  <span>
-  <span style={{
-  display: "flex",
-  alignItems: "center",
-  lineHeight: 0,
-  opacity: 0.9,
-  transform: "scale(0.95)"
-}}>
-  {toastState.type === "delete" && (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="trashGlow" x1="4" y1="3" x2="20" y2="21">
-      <stop stopColor="#ff6b6b" />
-      <stop offset="1" stopColor="#dc2626" />
-    </linearGradient>
-  </defs>
+                        <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
+                        <path
+                          d="M16.5 6.5L17.2 7.2L18.7 5.7"
+                          stroke="#064e3b"
+                          strokeWidth="1.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
 
-  <rect x="5" y="7" width="14" height="14" rx="3" fill="url(#trashGlow)" />
-  <path d="M9 7V5.5C9 4.7 9.7 4 10.5 4H13.5C14.3 4 15 4.7 15 5.5V7" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-  <path d="M4 7H20" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-  <path d="M10 11V17" stroke="white" strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
-  <path d="M14 11V17" stroke="white" strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
-  <circle cx="18" cy="6" r="3" fill="#fde047" />
-  <path d="M17.2 6L17.8 6.6L19 5.3" stroke="#111827" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-</svg>
-  )}
+                    {toastState.type === "undo" && (
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <defs>
+                          <linearGradient
+                            id="undoGlow"
+                            x1="4"
+                            y1="4"
+                            x2="20"
+                            y2="20"
+                          >
+                            <stop stopColor="#a78bfa" />
+                            <stop offset="1" stopColor="#7c3aed" />
+                          </linearGradient>
+                        </defs>
 
-  {toastState.type === "restore" && (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="restoreGlow" x1="4" y1="4" x2="20" y2="20">
-      <stop stopColor="#38bdf8" />
-      <stop offset="1" stopColor="#2563eb" />
-    </linearGradient>
-  </defs>
+                        <circle cx="12" cy="12" r="9" fill="url(#undoGlow)" />
 
-  <circle cx="12" cy="12" r="9" fill="url(#restoreGlow)" />
+                        <path
+                          d="M8.5 10.2H6.2V7.9"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
 
-  <path
-    d="M8.5 10.2H6.2V7.9"
-    stroke="white"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
+                        <path
+                          d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12"
+                          stroke="white"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
 
-  <path
-    d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12C17.8 15.2 15.2 17.8 12 17.8C9.9 17.8 8.1 16.7 7.1 15"
-    stroke="white"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-  />
+                        <path
+                          d="M15.2 14.2L17.8 16.8"
+                          stroke="white"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                        />
 
-  <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
-  <path
-    d="M16.5 6.5L17.2 7.2L18.7 5.7"
-    stroke="#064e3b"
-    strokeWidth="1.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-</svg>
-  )}
+                        <path
+                          d="M17.8 14.2L15.2 16.8"
+                          stroke="white"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
 
-  {toastState.type === "undo" && (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="undoGlow" x1="4" y1="4" x2="20" y2="20">
-      <stop stopColor="#a78bfa" />
-      <stop offset="1" stopColor="#7c3aed" />
-    </linearGradient>
-  </defs>
+                    {toastState.type === "normal" && (
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <defs>
+                          <linearGradient
+                            id="successGlow"
+                            x1="4"
+                            y1="4"
+                            x2="20"
+                            y2="20"
+                          >
+                            <stop stopColor="#34d399" />
+                            <stop offset="1" stopColor="#059669" />
+                          </linearGradient>
+                        </defs>
 
-  <circle cx="12" cy="12" r="9" fill="url(#undoGlow)" />
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="9"
+                          fill="url(#successGlow)"
+                        />
 
-  <path
-    d="M8.5 10.2H6.2V7.9"
-    stroke="white"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
+                        <path
+                          d="M8.5 12.5L11 15L16 10"
+                          stroke="white"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
 
-  <path
-    d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12"
-    stroke="white"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-  />
+                        <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
+                        <path
+                          d="M16.5 6.5L17.2 7.2L18.7 5.7"
+                          stroke="#064e3b"
+                          strokeWidth="1.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                </span>
 
-  <path
-    d="M15.2 14.2L17.8 16.8"
-    stroke="white"
-    strokeWidth="1.7"
-    strokeLinecap="round"
-  />
+                <span className="toastText">{toastState.message}</span>
+              </span>
 
-  <path
-    d="M17.8 14.2L15.2 16.8"
-    stroke="white"
-    strokeWidth="1.7"
-    strokeLinecap="round"
-  />
-</svg>
-  )}
+              {toastState.type === "undo" && (
+                <button
+                  className="undoButton"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    undoDelete();
+                  }}
+                >
+                  Undo ({toastState.seconds})
+                </button>
+              )}
 
-  {toastState.type === "normal" && (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="successGlow" x1="4" y1="4" x2="20" y2="20">
-      <stop stopColor="#34d399" />
-      <stop offset="1" stopColor="#059669" />
-    </linearGradient>
-  </defs>
+              <button
+                className="toastCloseButton"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearAllToastTimers();
+                  setToastExiting(true);
 
-  <circle cx="12" cy="12" r="9" fill="url(#successGlow)" />
+                  setTimeout(() => {
+                    setToastState(null);
+                    setToastExiting(false);
+                    setUndoLead(null);
+                  }, 180);
+                }}
+                aria-label="Close notification"
+              >
+                ×
+              </button>
 
-  <path
-    d="M8.5 12.5L11 15L16 10"
-    stroke="white"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-
-  <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
-  <path
-    d="M16.5 6.5L17.2 7.2L18.7 5.7"
-    stroke="#064e3b"
-    strokeWidth="1.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-</svg>
-  )}
-</span>
-</span>
-
-  <span className="toastText">{toastState.message}</span>
-</span>
-
-    {toastState.type === "undo" && (
-      <button className="undoButton" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => {
-  e.stopPropagation();
-  undoDelete();
-}}>
-        Undo ({toastState.seconds})
-      </button>
-    )}
-
-    <button
-      className="toastCloseButton"
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-  e.stopPropagation();
-  clearAllToastTimers();
-  setToastExiting(true);
-
-  setTimeout(() => {
-    setToastState(null);
-    setToastExiting(false);
-    setUndoLead(null);
-  }, 180);
-}}
-      aria-label="Close notification"
-    >
-      ×
-    </button>
-
-    {toastState.type === "undo" && (
-      <div className="toastProgress" key={`progress-${toastState.id}`} />
-    )}
-  </div>
-</div>
-</div>
-)}
+              {toastState.type === "undo" && (
+                <div
+                  className="toastProgress"
+                  key={`progress-${toastState.id}`}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <GlobalStyles />
     </main>
@@ -1965,162 +2073,161 @@ function LeadCard({
   updateLeadConsultant: (id: string, newConsultant: string) => void;
   consultantNames: string[];
 }) {
-  
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(lead.name);
   const [editPhone, setEditPhone] = useState(lead.phone || "");
   const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
   const [justSaved, setJustSaved] = useState(false);
   return (
-  <div className="leadCard">
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-      
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggleSelected}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "18px",
-          height: "18px",
-          cursor: "pointer",
-          marginTop: "4px",
-        }}
-      />
+    <div className="leadCard">
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelected}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: "18px",
+            height: "18px",
+            cursor: "pointer",
+            marginTop: "4px",
+          }}
+        />
 
-      <div style={{ flex: 1 }}>
-        {isEditing ? (
-          <div className="leadEditRow">
-            <div className="editFields">
-              <input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="editInput"
-                autoFocus
-              />
+        <div style={{ flex: 1 }}>
+          {isEditing ? (
+            <div className="leadEditRow">
+              <div className="editFields">
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="editInput"
+                  autoFocus
+                />
 
-              <input
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                className="editInput"
-                placeholder="Phone"
-              />
+                <input
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="editInput"
+                  placeholder="Phone"
+                />
 
-              <select
-  value={editConsultant}
-  onChange={(e) => setEditConsultant(e.target.value)}
->
-  <option value="" disabled>
-  Select Consultant
-</option>
+                <select
+                  value={editConsultant}
+                  onChange={(e) => setEditConsultant(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Select Consultant
+                  </option>
 
-  {consultantNames.map((name) => (
-    <option key={name} value={name}>
-      {name}
-    </option>
-  ))}
-</select>
+                  {consultantNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="editActions">
+                <button
+                  className="primaryButton"
+                  onClick={() => {
+                    updateLeadName(lead.id, editName);
+                    updateLeadPhone(lead.id, editPhone);
+                    updateLeadConsultant(lead.id, editConsultant);
+                    setJustSaved(true);
+
+                    setTimeout(() => {
+                      setJustSaved(false);
+                    }, 1200);
+
+                    setIsEditing(false);
+                  }}
+                >
+                  Save
+                </button>
+
+                <button
+                  className="secondaryButton"
+                  onClick={() => setIsEditing(false)}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
+          ) : (
+            <strong className="leadName">{lead.name}</strong>
+          )}
+          <p>Consultant: {lead.consultant}</p>
+          <p>Phone: {lead.phone || "No phone"}</p>
+          <p>Ref: {lead.reference_number || "N/A"}</p>
 
-            <div className="editActions">
-              <button
-                className="primaryButton"
-                onClick={() => {
-                  updateLeadName(lead.id, editName);
-                  updateLeadPhone(lead.id, editPhone);
-                  updateLeadConsultant(lead.id, editConsultant);
-                  setJustSaved(true);
+          <span
+            className="badge"
+            style={{ background: badgeColor(lead.next_action) }}
+          >
+            {lead.next_action}
+          </span>
 
-setTimeout(() => {
-  setJustSaved(false);
-}, 1200);
+          <span
+            className="badge"
+            style={{ background: badgeColor(lead.status), marginLeft: 8 }}
+          >
+            {lead.status}
+          </span>
+        </div>
 
-setIsEditing(false);
-                }}
-              >
-                Save
-              </button>
+        {justSaved && <span className="saveToast">Saved ✓</span>}
 
-              <button
-                className="secondaryButton"
-                onClick={() => setIsEditing(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <strong className="leadName">{lead.name}</strong>
-        )}
-        <p>Consultant: {lead.consultant}</p>
-        <p>Phone: {lead.phone || "No phone"}</p>
-        <p>Ref: {lead.reference_number || "N/A"}</p>
+        <div className="leadActions">
+          <select
+            value={lead.status}
+            onChange={(e) => updateStatus(lead.id, e.target.value)}
+            className="statusSelect"
+          >
+            <option value="New">New</option>
+            <option value="Contacted">Contacted</option>
+            <option value="Followed Up">Followed Up</option>
+            <option value="Viewing Scheduled">Viewing Scheduled</option>
+            <option value="Offer Made">Offer Made</option>
+            <option value="Won">Won</option>
+            <option value="Lost">Lost</option>
+          </select>
 
-        <span
-          className="badge"
-          style={{ background: badgeColor(lead.next_action) }}
-        >
-          {lead.next_action}
-        </span>
-
-        <span
-          className="badge"
-          style={{ background: badgeColor(lead.status), marginLeft: 8 }}
-        >
-          {lead.status}
-        </span>
-      </div>
-
-{justSaved && <span className="saveToast">Saved ✓</span>}
-
-      <div className="leadActions">
-        <select
-          value={lead.status}
-          onChange={(e) => updateStatus(lead.id, e.target.value)}
-          className="statusSelect"
-        >
-          <option value="New">New</option>
-          <option value="Contacted">Contacted</option>
-          <option value="Followed Up">Followed Up</option>
-          <option value="Viewing Scheduled">Viewing Scheduled</option>
-          <option value="Offer Made">Offer Made</option>
-          <option value="Won">Won</option>
-          <option value="Lost">Lost</option>
-        </select>
-
-        <button
-          className="secondaryButton"
-          onClick={() => markContacted(lead.id)}
-        >
-          Mark Contacted
-        </button>
-
-        <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
-          <svg className="whatsappSvg" viewBox="0 0 448 512" aria-hidden="true">
-            <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32 101.5 32 2 131.5 2 253.9c0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.5 224.1-221.9 0-59.3-25.2-115-67.1-157.1zM223.9 438.7c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3 18.6-68.1-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8s-14.3 18-17.6 21.8c-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2s-9.7 1.4-14.8 6.9c-5.1 5.6-19.4 19-19.4 46.3s19.9 53.7 22.6 57.4c2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-          </svg>
-          WhatsApp
-        </button>
-
-        {!isEditing && (
           <button
             className="secondaryButton"
-            onClick={() => setIsEditing(true)}
+            onClick={() => markContacted(lead.id)}
           >
-            Edit
+            Mark Contacted
           </button>
-        )}
 
-        <button
-  className="dangerButton"
-  onClick={() => deleteLead(lead)}
->
-  Delete
-</button>
+          <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
+            <svg
+              className="whatsappSvg"
+              viewBox="0 0 448 512"
+              aria-hidden="true"
+            >
+              <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32 101.5 32 2 131.5 2 253.9c0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.5 224.1-221.9 0-59.3-25.2-115-67.1-157.1zM223.9 438.7c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3 18.6-68.1-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8s-14.3 18-17.6 21.8c-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2s-9.7 1.4-14.8 6.9c-5.1 5.6-19.4 19-19.4 46.3s19.9 53.7 22.6 57.4c2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
+            </svg>
+            WhatsApp
+          </button>
+
+          {!isEditing && (
+            <button
+              className="secondaryButton"
+              onClick={() => setIsEditing(true)}
+            >
+              Edit
+            </button>
+          )}
+
+          <button className="dangerButton" onClick={() => deleteLead(lead)}>
+            Delete
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 function GlobalStyles() {

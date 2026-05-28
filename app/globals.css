@@ -476,15 +476,15 @@ button:active {
 .toast {
   overflow: hidden;
   position: relative;
-left: auto;
-right: auto;
-bottom: auto;
-transform: none;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
   will-change: transform;
   cursor: grab;
   user-select: none;
--webkit-user-select: none;
-touch-action: none;
+  -webkit-user-select: none;
+  touch-action: none;
   z-index: 9999;
 
   width: fit-content;
@@ -504,8 +504,7 @@ touch-action: none;
 
   animation: toastIn 0.28s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
 
-  transition:
-  box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .toast:active {
@@ -550,8 +549,8 @@ touch-action: none;
   line-height: 1;
 
   transition:
-  transform 0.12s ease,
-  filter 0.2s ease;
+    transform 0.12s ease,
+    filter 0.2s ease;
 }
 
 .undoButton:hover {
@@ -592,7 +591,7 @@ touch-action: none;
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
 
-  color: rgba(255,255,255,0.55);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 12px;
   font-weight: 500;
 
@@ -665,25 +664,29 @@ touch-action: none;
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(6px) scale(0.98);
+    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(6px)
+      scale(0.98);
   }
 
   to {
     opacity: 1;
-    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(0) scale(1);
+    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(0)
+      scale(1);
   }
 }
 
 @keyframes toastOut {
   0% {
     opacity: 1;
-    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(0) scale(1);
+    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(0)
+      scale(1);
     filter: blur(0);
   }
 
   100% {
     opacity: 0;
-    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(6px) scale(0.98);
+    transform: translateX(calc(-50% + var(--drag-x, 0px))) translateY(6px)
+      scale(0.98);
     filter: blur(2px);
   }
 }
