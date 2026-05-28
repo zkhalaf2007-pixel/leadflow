@@ -71,6 +71,7 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const popSoundRef = useRef<HTMLAudioElement | null>(null);
+  const finalDropSoundRef = useRef<HTMLAudioElement | null>(null);
   const countdownSoundRef = useRef<HTMLAudioElement | null>(null);
   const finalSoundRef = useRef<HTMLAudioElement | null>(null);
   const tickSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -129,13 +130,38 @@ export default function Home() {
   const [toastState, setToastState] = useState<{
   id: number;
   message: string;
-  type: "normal" | "undo";
+  type: "normal" | "undo" | "delete" | "restore";
   seconds: number;
 } | null>(null);
+const [addedToastStack, setAddedToastStack] = useState<
+  { id: number; message: string }[]
+>([]);
+const [consultantNames, setConsultantNames] = useState<string[]>([]);
+const [addedToastDragX, setAddedToastDragX] = useState<Record<number, number>>({});
+const [exitingAddedToastIds, setExitingAddedToastIds] = useState<Set<number>>(new Set());
+const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+
+const addedToastDragStartRef = useRef<
+  Record<number, {
+    startClientX: number;
+    startDragX: number;
+    currentX: number;
+    minX: number;
+    maxX: number;
+    startLeft: number;
+    startRight: number;
+  }>
+>({});
 const [toastExiting, setToastExiting] = useState(false);
 const [toastDragX, setToastDragX] = useState(0);
 const [toastDragging, setToastDragging] = useState(false);
 const [toastStartX, setToastStartX] = useState(0);
+const toastDragBoundsRef = useRef({
+  minX: 0,
+  maxX: 0,
+  startLeft: 0,
+  startRight: 0,
+});
   const [closeVisible, setCloseVisible] = useState(false);
   const [undoSeconds, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
@@ -148,6 +174,7 @@ const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 const finalToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const [undoLeads, setUndoLeads] = useState<Lead[]>([]);
   function stopUndoSequence() {
 
     if (toastTimerRef.current) {
@@ -176,6 +203,20 @@ const undoTickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
       finalSoundRef.current.currentTime = 0;
     }
 
+    if (countdownSoundTimeoutRef.current) {
+  clearTimeout(countdownSoundTimeoutRef.current);
+  countdownSoundTimeoutRef.current = null;
+}
+
+if (finalToastTimeoutRef.current) {
+  clearTimeout(finalToastTimeoutRef.current);
+  finalToastTimeoutRef.current = null;
+}
+
+if (undoTickTimeoutRef.current) {
+  clearTimeout(undoTickTimeoutRef.current);
+  undoTickTimeoutRef.current = null;
+}
     setUndoSeconds(0);
   }
 
@@ -197,25 +238,79 @@ function clearAllToastTimers() {
   finalPlayedRef.current = false;
 }
 
-  function showToast(message: string) {
+  function showToast(
+  message: string,
+  type: "normal" | "undo" | "delete" | "restore" = "normal"
+) {
   clearAllToastTimers();
 
-  const id = toastRunIdRef.current;
+  const id = toastRunIdRef.current + 1;
+  toastRunIdRef.current = id;
 
-  setUndoLead(null);
+  setToastExiting(false);
+  setToastDragX(0);
+
   setToastState({
-    id,
-    message,
-    type: "normal",
-    seconds: 0,
-  });
+  id,
+  message,
+  type,
+  seconds: 5,
+});
 
   playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
 
   normalToastTimerRef.current = setTimeout(() => {
+  if (toastRunIdRef.current !== id) return;
+
+  // 🔥 Step 1: trigger exit animation
+  setToastExiting(true);
+
+  // 🔊 Step 2: play exit sound
+  playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
+
+  // ⏱ Step 3: remove after animation
+  setTimeout(() => {
     if (toastRunIdRef.current !== id) return;
     setToastState(null);
-  }, 5000);
+    setToastExiting(false);
+  }, 220);
+
+}, 5000);
+}
+function showAddedToast(message: string) {
+  const id = Date.now();
+
+  setAddedToastStack((prev) => [
+  ...prev,
+  { id, message },
+].slice(-5));
+
+  playSound(popSoundRef, { volume: 0.75, playbackRate: 1 });
+}
+
+function dismissAddedToast(id: number) {
+  setExitingAddedToastIds((prev) => {
+    const next = new Set(prev);
+    next.add(id);
+    return next;
+  });
+  playSound(finalDropSoundRef, { volume: 0.8, playbackRate: 1 });
+
+  setTimeout(() => {
+    setAddedToastStack((prev) => prev.filter((t) => t.id !== id));
+
+    setAddedToastDragX((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    setExitingAddedToastIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, 220);
 }
 
   function showUndoToast(message: string) {
@@ -224,6 +319,7 @@ function clearAllToastTimers() {
   const id = toastRunIdRef.current;
   let secondsLeft = 5;
 
+  setToastDragX(0);
   setToastState({ id, message, type: "undo", seconds: secondsLeft });
   playSound(popSoundRef, { volume: 0.8, playbackRate: 1 });
 
@@ -306,21 +402,6 @@ function clearAllToastTimers() {
     }
   }
 
-  async function fetchConsultants() {
-    const { data, error } = await supabase
-      .from("consultants")
-      .select("name")
-      .eq("active", true)
-      .order("name");
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setConsultants(data.map((c) => c.name));
-  }
-
   async function addConsultant() {
     if (!newConsultantName.trim()) {
       alert("Please enter a consultant name.");
@@ -337,28 +418,32 @@ function clearAllToastTimers() {
     }
 
     const { error } = await supabase.from("consultants").insert({
-      name: cleanName,
-      active: true,
-    });
+  name: cleanName,
+});
 
     if (error) return alert("Error adding consultant");
 
     setNewConsultantName("");
     fetchConsultants();
-    showToast("Consultant added");
+    showToast("Consultant added", "normal");
   }
 
   async function deleteConsultant(name: string) {
-    const { error } = await supabase
-      .from("consultants")
-      .update({ active: false })
-      .eq("name", name);
+  const { error } = await supabase
+    .from("consultants")
+    .delete()
+    .eq("name", name);
 
-    if (error) return alert("Error deleting consultant");
-
-    fetchConsultants();
-    showToast("Consultant removed");
+  if (error) {
+    console.error("Error deleting consultant:", error);
+    return alert("Error deleting consultant");
   }
+
+  // 🔑 Wait for fresh data from DB ONLY
+  await fetchConsultants();
+
+  showToast("Consultant removed", "delete");
+}
   async function fetchLeads() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -372,6 +457,20 @@ function clearAllToastTimers() {
     if (error) return alert("Error loading leads");
     setLeads(data || []);
   }
+
+async function fetchConsultants() {
+  const { data, error } = await supabase
+    .from("consultants")
+    .select("name")
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching consultants:", error);
+    return;
+  }
+
+  setConsultantNames(data.map((c) => c.name));
+}
 
   async function addLead() {
     const cleanName = name.trim();
@@ -403,11 +502,12 @@ function clearAllToastTimers() {
     setStatus("New");
 
     fetchLeads();
-    showToast("Lead added successfully");
+    showAddedToast("Lead added successfully")
   }
 
   async function deleteLead(lead: Lead) {
     setUndoLead(lead);
+    setUndoLeads([]);
 
     const { error } = await supabase.from("leads").delete().eq("id", lead.id);
     if (error) return alert("Error deleting lead");
@@ -470,7 +570,18 @@ showUndoToast("Lead deleted");
 
   async function undoDelete() {
     stopUndoSequence();
+if (undoLeads.length > 0) {
+  const { error } = await supabase.from("leads").insert(undoLeads);
 
+  if (error) return alert("Error restoring leads");
+
+  setUndoLeads([]);
+  setUndoLead(null);
+  setUndoSeconds(0);
+  fetchLeads();
+  showToast(`${undoLeads.length} leads restored`, "restore");
+  return;
+}
     if (!undoLead) return;
 
     const { error } = await supabase.from("leads").insert(undoLead);
@@ -479,7 +590,7 @@ showUndoToast("Lead deleted");
     setUndoLead(null);
     setUndoSeconds(0);
     fetchLeads();
-    showToast("Lead restored");
+    showToast("Lead restored", "restore");
   }
 
   async function markContacted(id: string) {
@@ -578,7 +689,6 @@ showUndoToast("Lead deleted");
   ).length;
 
   const won = leads.filter((l) => l.status === "Won").length;
-  const consultantNames = Array.from(new Set(leads.map((l) => l.consultant)));
   const consultantStats = consultantNames.map((name) => {
     const consultantLeads = leads.filter((lead) => lead.consultant === name);
 
@@ -940,11 +1050,11 @@ showUndoToast("Lead deleted");
                     onChange={(e) => setConsultantToDelete(e.target.value)}
                   >
                     <option value="">Select consultant...</option>
-                    {consultants.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+{consultantNames.map((name) => (
+  <option key={name} value={name}>
+    {name}
+  </option>
+))}
                   </select>
 
                   <button
@@ -1018,11 +1128,11 @@ showUndoToast("Lead deleted");
               }}
             >
               <option value="">Select Consultant</option>
-              {consultants.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+{consultantNames.map((name) => (
+  <option key={name} value={name}>
+    {name}
+  </option>
+))}
             </select>
 
             <input
@@ -1134,10 +1244,18 @@ showUndoToast("Lead deleted");
 
           {followUps.length === 0 && <p>No urgent leads 🎉</p>}
 
-          {followUps.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
+          {followUps.map((lead: Lead) => (
+  <LeadCard
+    key={lead.id}
+    lead={lead}
+    selected={selectedLeadIds.includes(lead.id)}
+    onToggleSelected={() => {
+      setSelectedLeadIds((prev) =>
+        prev.includes(lead.id)
+          ? prev.filter((id) => id !== lead.id)
+          : [...prev, lead.id]
+      );
+    }}
               updateStatus={updateStatus}
               markContacted={markContacted}
               openWhatsApp={openWhatsApp}
@@ -1145,7 +1263,7 @@ showUndoToast("Lead deleted");
               updateLeadName={updateLeadName}
               updateLeadPhone={updateLeadPhone}
               updateLeadConsultant={updateLeadConsultant}
-              consultantNames={consultants}
+              consultantNames={consultantNames}
             />
           ))}
         </section>
@@ -1168,47 +1286,383 @@ showUndoToast("Lead deleted");
         <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>All Leads</h2>
 
-          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-            <input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center" }}>
+  
+  <input
+    type="checkbox"
+    checked={selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0}
+    onChange={(e) => {
+      if (e.target.checked) {
+        setSelectedLeadIds(filteredLeads.map((l) => l.id));
+      } else {
+        setSelectedLeadIds([]);
+      }
+    }}
+    style={{
+      width: "18px",
+      height: "18px",
+      cursor: "pointer",
+    }}
+  />
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+  <span style={{ fontSize: "14px", opacity: 0.8 }}>
+    Select All
+  </span>
 
-          {filteredLeads.map((lead) => (
+  <input
+    placeholder="Search..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    style={{ flex: 1 }}
+  />
+
+  <select
+    value={statusFilter}
+    onChange={(e) => setStatusFilter(e.target.value)}
+  >
+    <option value="All">All</option>
+    {STATUS_OPTIONS.map((s) => (
+      <option key={s} value={s}>
+        {s}
+      </option>
+    ))}
+  </select>
+
+</div>
+
+{selectedLeadIds.length > 0 && (
+  <button
+    className="dangerButton"
+    style={{
+  position: "fixed",
+  right: "24px",
+  bottom: "24px",
+  zIndex: 50,
+  padding: "10px 16px",
+  borderRadius: "10px",
+  boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+  fontWeight: 700,
+}}
+    onClick={async () => {
+  const leadsToDelete = filteredLeads.filter((lead) =>
+    selectedLeadIds.includes(lead.id)
+  );
+
+  const { error } = await supabase
+    .from("leads")
+    .delete()
+    .in("id", selectedLeadIds);
+
+  if (error) return alert("Error deleting selected leads");
+
+  setUndoLeads(leadsToDelete);
+  setUndoLead(null);
+
+  setLeads((prev) =>
+    prev.filter((lead) => !selectedLeadIds.includes(lead.id))
+  );
+
+  showUndoToast(`${leadsToDelete.length} leads deleted`);
+  setSelectedLeadIds([]);
+}}
+  >
+    Delete {selectedLeadIds.length} selected
+  </button>
+)}
+
+          {filteredLeads.map((lead: Lead) => (
             <LeadCard
-              key={lead.id}
-              lead={lead}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-              updateLeadName={updateLeadName}
-              updateLeadPhone={updateLeadPhone}
-              updateLeadConsultant={updateLeadConsultant}
-              consultantNames={consultants}
-            />
+  key={lead.id}
+  lead={lead}
+  selected={selectedLeadIds.includes(lead.id)}
+  onToggleSelected={() => {
+    setSelectedLeadIds((prev) =>
+      prev.includes(lead.id)
+        ? prev.filter((id) => id !== lead.id)
+        : [...prev, lead.id]
+    );
+  }}
+  updateStatus={updateStatus}
+  markContacted={markContacted}
+  openWhatsApp={openWhatsApp}
+  deleteLead={deleteLead}
+  updateLeadName={updateLeadName}
+  updateLeadPhone={updateLeadPhone}
+  updateLeadConsultant={updateLeadConsultant}
+  consultantNames={consultantNames}
+/>
           ))}
         </section>
       </section>
+<div
+  style={{
+  position: "fixed",
+  left: "50%",
+  marginLeft: "160px",
+  bottom: toastState ? "132px" : "32px",
+  transform: "translateX(-50%)",
+  width: "320px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "12px",
+  zIndex: 9998,
+  pointerEvents: "none",
+}}
+>
 
+  {addedToastStack.map((toast, index) => (
+    <div
+      key={toast.id}
+      style={{
+  width: "fit-content",
+  display: "inline-block",
+  transform: `translateY(${exitingAddedToastIds.has(toast.id) ? 0 : 6}px) translateX(${addedToastDragX[toast.id] || 0}px) scale(${addedToastDragX[toast.id] ? 0.985 : 1})`,
+  opacity: exitingAddedToastIds.has(toast.id) ? 0 : 1,
+  transition: addedToastDragX[toast.id]
+  ? "none"
+  : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
+willChange: "transform, opacity",
+backfaceVisibility: "hidden",
+WebkitBackfaceVisibility: "hidden",
+  pointerEvents: "auto",
+  touchAction: "none",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  cursor: "default",
+}}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        (document.activeElement as HTMLElement | null)?.blur();
+document.body.classList.add("toastDraggingActive");
+        e.currentTarget.setPointerCapture(e.pointerId);
+        document.body.style.userSelect = "none";
+document.body.style.webkitUserSelect = "none";
+
+        const card = e.currentTarget.firstElementChild as HTMLElement | null;
+const rect = (card ?? e.currentTarget).getBoundingClientRect();
+const startDragX = addedToastDragX[toast.id] || 0;
+
+addedToastDragStartRef.current[toast.id] = {
+  startClientX: e.clientX,
+  startDragX,
+  currentX: startDragX,
+  minX: startDragX - rect.left,
+  maxX: startDragX + (window.innerWidth - rect.right),
+  startLeft: rect.left,
+  startRight: rect.right,
+};
+      }}
+      
+      onPointerMove={(e) => {
+        const data = addedToastDragStartRef.current[toast.id];
+        if (!data) return;
+        e.preventDefault();
+e.stopPropagation();
+
+        const rawDelta = data.startDragX + (e.clientX - data.startClientX);
+const delta = Math.max(data.minX, Math.min(data.maxX, rawDelta));
+const hitLeftEdge = data.startLeft + rawDelta <= 0;
+const hitRightEdge = data.startRight + rawDelta >= window.innerWidth;
+
+if (hitLeftEdge || hitRightEdge) {
+  dismissAddedToast(toast.id);
+  delete addedToastDragStartRef.current[toast.id];
+  return;
+}
+data.currentX = delta;
+window.getSelection()?.removeAllRanges();
+
+        setAddedToastDragX((prev) => ({
+          ...prev,
+          [toast.id]: delta,
+        }));
+      }}
+      onPointerUp={(e) => {
+        document.body.classList.remove("toastDraggingActive");
+        document.body.style.userSelect = "";
+document.body.style.webkitUserSelect = "";
+setToastDragging(false);
+setToastDragX(0);
+setToastStartX(0);
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+
+        const delta = addedToastDragX[toast.id] || 0;
+
+        delete addedToastDragStartRef.current[toast.id];
+
+        setAddedToastDragX((prev) => ({
+  ...prev,
+  [toast.id]: 0,
+}));
+      }}
+
+onPointerCancel={() => {
+  document.body.classList.remove("toastDraggingActive");
+  document.body.style.userSelect = "";
+  document.body.style.webkitUserSelect = "";
+  setToastDragging(false);
+setToastDragX(0);
+setToastStartX(0);
+delete addedToastDragStartRef.current[toast.id];
+}}
+    >
+      <div
+  className="toast normalToast"
+  style={{
+  position: "relative",
+  top: "auto",
+  left: "auto",
+  right: "auto",
+  bottom: "auto",
+  transform: "none",
+  width: "320px",
+  height: "56px",
+  padding: "10px 18px",
+  boxSizing: "border-box",
+  boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+}}
+>
+        <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    width: "100%",
+  }}
+>
+          <span>{toast.message}</span>
+
+          <button
+  className="toastCloseButton"
+  onPointerDown={(e) => e.stopPropagation()}
+  onClick={(e) => {
+    e.stopPropagation();
+    e.preventDefault(); // 👈 ADD THIS
+    dismissAddedToast(toast.id);
+  }}
+>
+  ×
+</button>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
       {toastState && (
+        <div
+  style={{
+    position: "fixed",
+    left: "50%",
+    bottom: "32px",
+    transform: "translateX(-50%)",
+    zIndex: 9999,
+    pointerEvents: "auto",
+  }}
+>
   <div
-  key={toastState.id}
+  onPointerDown={(e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  (document.activeElement as HTMLElement | null)?.blur();
+document.body.classList.add("toastDraggingActive");
+
+  setToastDragging(true);
+  document.body.style.userSelect = "none";
+document.body.style.webkitUserSelect = "none";
+
+  e.currentTarget.setPointerCapture(e.pointerId);
+  setToastStartX(e.clientX - toastDragX);
+  const card = e.currentTarget.firstElementChild as HTMLElement | null;
+const rect = (card ?? e.currentTarget).getBoundingClientRect();
+const startDragX = toastDragX;
+
+toastDragBoundsRef.current = {
+  minX: startDragX - rect.left,
+  maxX: startDragX + (window.innerWidth - rect.right),
+  startLeft: rect.left,
+  startRight: rect.right,
+};
+}}
+
+onPointerMove={(e) => {
+  if (!toastDragging) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const rawNextX = e.clientX - toastStartX;
+const nextX = Math.max(
+  toastDragBoundsRef.current.minX,
+  Math.min(toastDragBoundsRef.current.maxX, rawNextX)
+);
+const hitLeftEdge = toastDragBoundsRef.current.startLeft + rawNextX <= 0;
+const hitRightEdge =
+  toastDragBoundsRef.current.startRight + rawNextX >= window.innerWidth;
+
+if (hitLeftEdge || hitRightEdge) {
+  stopUndoSequence();
+  setToastState(null);
+  setUndoLead(null);
+  setUndoSeconds(0);
+  setToastDragX(0);
+  setToastDragging(false);
+  return;
+}
+
+window.getSelection()?.removeAllRanges();
+  setToastDragX(nextX);
+}}
+
+onPointerUp={(e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  document.body.classList.remove("toastDraggingActive");
+
+  setToastDragging(false);
+  document.body.style.userSelect = "";
+  document.body.style.webkitUserSelect = "";
+
+  if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
+  const finalX = e.clientX - toastStartX;
+
+  setToastDragX(0);
+}}
+
+onPointerCancel={() => {
+  document.body.classList.remove("toastDraggingActive");
+  setToastDragging(false);
+  document.body.style.userSelect = "";
+  document.body.style.webkitUserSelect = "";
+  setToastDragX(0);
+}}
+
+style={{
+  transform: `translateY(${toastDragging ? 0 : 6}px) translateX(${toastDragX}px) scale(${toastDragging ? 0.985 : 1})`,
+  transition: toastDragging
+  ? "none"
+  : "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease",
+willChange: "transform, opacity",
+backfaceVisibility: "hidden",
+WebkitBackfaceVisibility: "hidden",
+  pointerEvents: "auto",
+  touchAction: "none",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  cursor: toastDragging ? "grabbing" : "grab",
+}}
+>
+  <div
   className={`${
     toastState.type === "undo"
       ? "toast undoToast"
@@ -1216,60 +1670,211 @@ showUndoToast("Lead deleted");
   } ${toastExiting ? "toastExiting" : ""}`}
 
   style={{
-    "--drag-x": `${toastDragX}px`,
-  } as React.CSSProperties}
+  zIndex: 9999,
+  boxSizing: "border-box",
+  boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  ...(toastState.message === "Lead restored"
+  ? {
+      width: "fit-content",
+      height: "48px",
+      padding: "10px 18px",
+    }
+  : {
+    background:
+  toastState?.type === "delete"
+    ? "rgba(220, 38, 38, 0.12)"   // soft red
+    : toastState?.type === "restore"
+    ? "rgba(34, 197, 94, 0.12)"   // soft green
+    : toastState?.type === "undo"
+    ? "#111"                      // keep neutral for undo
+    : "#111",
+      width: "320px",
+      color:
+  toastState?.type === "delete"
+    ? "#ef4444"
+    : toastState?.type === "restore"
+    ? "#22c55e"
+    : "#fff",
+      border:
+  toastState?.type === "delete"
+    ? "1px solid rgba(220, 38, 38, 0.25)"
+    : toastState?.type === "restore"
+    ? "1px solid rgba(34, 197, 94, 0.25)"
+    : "1px solid rgba(255,255,255,0.06)",
+      height: "56px",
+      padding: "10px 18px",
+    }),
+} as React.CSSProperties}
 
-  onPointerDown={(e) => {
-  e.preventDefault();
-  e.currentTarget.setPointerCapture(e.pointerId);
-  setToastDragging(true);
-  setToastStartX(e.clientX);
-}}
-
-onPointerMove={(e) => {
-  if (!toastDragging) return;
-
-  const deltaX = e.clientX - toastStartX;
-  setToastDragX(deltaX);
-}}
-
-onPointerUp={() => {
-  setToastDragging(false);
-
-  if (Math.abs(toastDragX) > 120) {
-    setToastExiting(true);
-
-    setTimeout(() => {
-      setToastState(null);
-      setToastExiting(false);
-      setUndoLead(null);
-      setToastDragX(0);
-    }, 180);
-  } else {
-    setToastDragX(0);
-  }
-}}
 >
-    <span className="toastText">{toastState.message}</span>
+    <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+  <span>
+  <span style={{
+  display: "flex",
+  alignItems: "center",
+  lineHeight: 0,
+  opacity: 0.9,
+  transform: "scale(0.95)"
+}}>
+  {toastState.type === "delete" && (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="trashGlow" x1="4" y1="3" x2="20" y2="21">
+      <stop stopColor="#ff6b6b" />
+      <stop offset="1" stopColor="#dc2626" />
+    </linearGradient>
+  </defs>
+
+  <rect x="5" y="7" width="14" height="14" rx="3" fill="url(#trashGlow)" />
+  <path d="M9 7V5.5C9 4.7 9.7 4 10.5 4H13.5C14.3 4 15 4.7 15 5.5V7" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+  <path d="M4 7H20" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+  <path d="M10 11V17" stroke="white" strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
+  <path d="M14 11V17" stroke="white" strokeWidth="1.6" strokeLinecap="round" opacity="0.9" />
+  <circle cx="18" cy="6" r="3" fill="#fde047" />
+  <path d="M17.2 6L17.8 6.6L19 5.3" stroke="#111827" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+</svg>
+  )}
+
+  {toastState.type === "restore" && (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="restoreGlow" x1="4" y1="4" x2="20" y2="20">
+      <stop stopColor="#38bdf8" />
+      <stop offset="1" stopColor="#2563eb" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="12" cy="12" r="9" fill="url(#restoreGlow)" />
+
+  <path
+    d="M8.5 10.2H6.2V7.9"
+    stroke="white"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+
+  <path
+    d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12C17.8 15.2 15.2 17.8 12 17.8C9.9 17.8 8.1 16.7 7.1 15"
+    stroke="white"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+  />
+
+  <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
+  <path
+    d="M16.5 6.5L17.2 7.2L18.7 5.7"
+    stroke="#064e3b"
+    strokeWidth="1.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+</svg>
+  )}
+
+  {toastState.type === "undo" && (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="undoGlow" x1="4" y1="4" x2="20" y2="20">
+      <stop stopColor="#a78bfa" />
+      <stop offset="1" stopColor="#7c3aed" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="12" cy="12" r="9" fill="url(#undoGlow)" />
+
+  <path
+    d="M8.5 10.2H6.2V7.9"
+    stroke="white"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+
+  <path
+    d="M6.5 10.2C7.3 7.9 9.4 6.3 12 6.3C15.2 6.3 17.8 8.8 17.8 12"
+    stroke="white"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+  />
+
+  <path
+    d="M15.2 14.2L17.8 16.8"
+    stroke="white"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+  />
+
+  <path
+    d="M17.8 14.2L15.2 16.8"
+    stroke="white"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+  />
+</svg>
+  )}
+
+  {toastState.type === "normal" && (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="successGlow" x1="4" y1="4" x2="20" y2="20">
+      <stop stopColor="#34d399" />
+      <stop offset="1" stopColor="#059669" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="12" cy="12" r="9" fill="url(#successGlow)" />
+
+  <path
+    d="M8.5 12.5L11 15L16 10"
+    stroke="white"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+
+  <circle cx="17.5" cy="6.5" r="2.6" fill="#a7f3d0" />
+  <path
+    d="M16.5 6.5L17.2 7.2L18.7 5.7"
+    stroke="#064e3b"
+    strokeWidth="1.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+</svg>
+  )}
+</span>
+</span>
+
+  <span className="toastText">{toastState.message}</span>
+</span>
 
     {toastState.type === "undo" && (
-      <button className="undoButton" onClick={undoDelete}>
+      <button className="undoButton" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => {
+  e.stopPropagation();
+  undoDelete();
+}}>
         Undo ({toastState.seconds})
       </button>
     )}
 
     <button
       className="toastCloseButton"
-      onClick={() => {
-        clearAllToastTimers();
-setToastExiting(true);
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+  e.stopPropagation();
+  clearAllToastTimers();
+  setToastExiting(true);
 
-setTimeout(() => {
-  setToastState(null);
-  setToastExiting(false);
-  setUndoLead(null);
-}, 180);
-      }}
+  setTimeout(() => {
+    setToastState(null);
+    setToastExiting(false);
+    setUndoLead(null);
+  }, 180);
+}}
       aria-label="Close notification"
     >
       ×
@@ -1279,6 +1884,8 @@ setTimeout(() => {
       <div className="toastProgress" key={`progress-${toastState.id}`} />
     )}
   </div>
+</div>
+</div>
 )}
 
       <GlobalStyles />
@@ -1335,6 +1942,8 @@ function Card({
 
 function LeadCard({
   lead,
+  selected,
+  onToggleSelected,
   updateStatus,
   markContacted,
   openWhatsApp,
@@ -1345,6 +1954,8 @@ function LeadCard({
   consultantNames,
 }: {
   lead: Lead;
+  selected: boolean;
+  onToggleSelected: () => void;
   updateStatus: (id: string, status: string) => void;
   markContacted: (id: string) => void;
   openWhatsApp: (lead: Lead) => void;
@@ -1354,14 +1965,30 @@ function LeadCard({
   updateLeadConsultant: (id: string, newConsultant: string) => void;
   consultantNames: string[];
 }) {
+  
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(lead.name);
   const [editPhone, setEditPhone] = useState(lead.phone || "");
   const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
   const [justSaved, setJustSaved] = useState(false);
   return (
-    <div className="leadCard">
-      <div>
+  <div className="leadCard">
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+      
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelected}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "18px",
+          height: "18px",
+          cursor: "pointer",
+          marginTop: "4px",
+        }}
+      />
+
+      <div style={{ flex: 1 }}>
         {isEditing ? (
           <div className="leadEditRow">
             <div className="editFields">
@@ -1380,17 +2007,19 @@ function LeadCard({
               />
 
               <select
-                value={editConsultant}
-                onChange={(e) => setEditConsultant(e.target.value)}
-                className="editInput"
-              >
-                <option value="">Select Consultant</option>
-                {consultantNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+  value={editConsultant}
+  onChange={(e) => setEditConsultant(e.target.value)}
+>
+  <option value="" disabled>
+  Select Consultant
+</option>
+
+  {consultantNames.map((name) => (
+    <option key={name} value={name}>
+      {name}
+    </option>
+  ))}
+</select>
             </div>
 
             <div className="editActions">
@@ -1482,12 +2111,16 @@ setIsEditing(false);
           </button>
         )}
 
-        <button className="dangerButton" onClick={() => deleteLead(lead)}>
-          Delete
-        </button>
+        <button
+  className="dangerButton"
+  onClick={() => deleteLead(lead)}
+>
+  Delete
+</button>
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 function GlobalStyles() {
