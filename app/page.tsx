@@ -30,7 +30,6 @@ const STATUS_OPTIONS = [
   "Lost",
 ];
 
-const CONSULTANT_OPTIONS = ["Consultant 1", "Consultant 2", "Consultant 3"];
 function getTodayDate() {
   return new Date().toISOString().split("T")[0];
 }
@@ -67,7 +66,7 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [selectedConsultant, setSelectedConsultant] = useState<string>("All");
-  const [consultants, setConsultants] = useState<string[]>([]);
+  const [consultants] = useState<string[]>([]);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const popSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -124,9 +123,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
-  const [toast, setToast] = useState("");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
-  const [undoSecondsLeft, setUndoSecondsLeft] = useState(5);
   const [toastState, setToastState] = useState<{
     id: number;
     message: string;
@@ -169,8 +166,7 @@ export default function Home() {
     startLeft: 0,
     startRight: 0,
   });
-  const [closeVisible, setCloseVisible] = useState(false);
-  const [undoSeconds, setUndoSeconds] = useState(0);
+  const [, setUndoSeconds] = useState(0);
   const [newConsultantName, setNewConsultantName] = useState("");
   const [consultantToDelete, setConsultantToDelete] = useState("");
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -432,6 +428,15 @@ export default function Home() {
   }
 
   async function deleteConsultant(name: string) {
+    const assignedLeadCount = leads.filter((lead) => lead.consultant === name).length;
+
+if (assignedLeadCount > 0) {
+  showToast(
+    `${name} is assigned to ${assignedLeadCount} lead(s). Reassign them before deleting.`,
+    "delete"
+  );
+  return;
+}
     const { error } = await supabase
       .from("consultants")
       .delete()
@@ -987,7 +992,9 @@ export default function Home() {
         >
           {role === "manager" && (
             <div style={{ marginBottom: "28px" }}>
-              <h2 style={{ marginBottom: "16px" }}>Manage Consultants</h2>
+              <h2 style={{ marginBottom: "16px" }}>
+  Manage Consultants ({consultantNames.length})
+</h2>
 
               <div
                 style={{
@@ -1419,7 +1426,7 @@ export default function Home() {
           pointerEvents: "none",
         }}
       >
-        {addedToastStack.map((toast, index) => (
+        {addedToastStack.map((toast) => (
           <div
             key={toast.id}
             style={{
@@ -1499,8 +1506,6 @@ export default function Home() {
               if (e.currentTarget.hasPointerCapture(e.pointerId)) {
                 e.currentTarget.releasePointerCapture(e.pointerId);
               }
-
-              const delta = addedToastDragX[toast.id] || 0;
 
               delete addedToastDragStartRef.current[toast.id];
 
@@ -1643,8 +1648,6 @@ export default function Home() {
               if (e.currentTarget.hasPointerCapture(e.pointerId)) {
                 e.currentTarget.releasePointerCapture(e.pointerId);
               }
-
-              const finalX = e.clientX - toastStartX;
 
               setToastDragX(0);
             }}
