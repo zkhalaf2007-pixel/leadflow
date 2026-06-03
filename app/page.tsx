@@ -113,6 +113,7 @@ export default function Home() {
     }, 16);
   }
 
+  const [activePage, setActivePage] = useState("dashboard");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
   const [consultant, setConsultant] = useState("");
@@ -856,15 +857,79 @@ if (assignedLeadCount > 0) {
         <h1 className="brandTitle">LeadFlow</h1>
 
         <div className="navList">
-          <div className="navText active">Dashboard</div>
-          <div className="navText">Follow-Ups</div>
-          <div className="navText">Leads</div>
-          <div className="navText">Consultants</div>
-        </div>
+  <div
+    className={`navText ${activePage === "dashboard" ? "active" : ""}`}
+    onClick={() => setActivePage("dashboard")}
+  >
+    Dashboard
+  </div>
+
+  {role === "manager" ? (
+    <>
+      <div
+        className={`navText ${activePage === "analytics" ? "active" : ""}`}
+        onClick={() => setActivePage("analytics")}
+      >
+        Analytics
+      </div>
+
+      <div
+        className={`navText ${activePage === "consultants" ? "active" : ""}`}
+        onClick={() => setActivePage("consultants")}
+      >
+        Consultants
+      </div>
+
+      <div
+        className={`navText ${activePage === "reports" ? "active" : ""}`}
+        onClick={() => setActivePage("reports")}
+      >
+        Reports
+      </div>
+    </>
+  ) : (
+    <>
+      <div
+        className={`navText ${activePage === "my-leads" ? "active" : ""}`}
+        onClick={() => setActivePage("my-leads")}
+      >
+        My Leads
+      </div>
+
+      <div
+        className={`navText ${activePage === "my-followups" ? "active" : ""}`}
+        onClick={() => setActivePage("my-followups")}
+      >
+        My Follow-Ups
+      </div>
+
+      <div
+        className={`navText ${activePage === "my-performance" ? "active" : ""}`}
+        onClick={() => setActivePage("my-performance")}
+      >
+        My Performance
+      </div>
+    </>
+  )}
+</div>
       </aside>
 
       <section className="content">
-        <header className="header">
+        {activePage !== "dashboard" && (
+  <div className="placeholderPage">
+    <h1 className="pageTitle">
+      {activePage === "analytics" && "Analytics"}
+      {activePage === "consultants" && "Consultants"}
+      {activePage === "reports" && "Reports"}
+      {activePage === "my-leads" && "My Leads"}
+      {activePage === "my-followups" && "My Follow-Ups"}
+      {activePage === "my-performance" && "My Performance"}
+    </h1>
+    <p>This page is ready to be built.</p>
+  </div>
+)}
+        {activePage === "dashboard" && (
+  <header className="header">
           <div>
             <h1 className="pageTitle">Dashboard</h1>
             {role === "manager" && (
@@ -902,8 +967,10 @@ if (assignedLeadCount > 0) {
             Log Out
           </button>
         </header>
+)}
 
-        <div className="cards">
+        {activePage === "dashboard" && (
+  <div className="cards">
           <Card label="Total Leads" value={leads.length} />
           <Card
             label="Urgent Follow-Ups"
@@ -913,8 +980,7 @@ if (assignedLeadCount > 0) {
           <Card label="Overdue" value={overdue} color="#dc2626" />
           <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
-
-        {role === "manager" && (
+        )}
           <div className="panel" style={{ marginTop: "24px", padding: "24px" }}>
             <h2 className="sectionTitle">Team Performance</h2>
 
@@ -977,7 +1043,6 @@ if (assignedLeadCount > 0) {
               </tbody>
             </table>
           </div>
-        )}
 
         <section
           className="panel"
@@ -990,7 +1055,8 @@ if (assignedLeadCount > 0) {
             border: "1px solid #eef2f7",
           }}
         >
-          {role === "manager" && (
+          {activePage === "dashboard" &&
+ role === "manager" && (
             <div style={{ marginBottom: "28px" }}>
               <h2 style={{ marginBottom: "16px" }}>
   Manage Consultants ({consultantNames.length})
@@ -1249,6 +1315,7 @@ if (assignedLeadCount > 0) {
           </button>
         </section>
 
+{activePage === "dashboard" && role === "manager" && (
         <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>Follow-Up Queue</h2>
 
@@ -1275,8 +1342,9 @@ if (assignedLeadCount > 0) {
               updateLeadConsultant={updateLeadConsultant}
               consultantNames={consultantNames}
             />
-          ))}
-        </section>
+              ))}
+</section>
+)}
 
         <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>Consultant Scoreboard</h2>
@@ -1305,24 +1373,24 @@ if (assignedLeadCount > 0) {
             }}
           >
             <input
-              type="checkbox"
-              checked={
-                selectedLeadIds.length === filteredLeads.length &&
-                filteredLeads.length > 0
-              }
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedLeadIds(filteredLeads.map((l) => l.id));
-                } else {
-                  setSelectedLeadIds([]);
-                }
-              }}
-              style={{
-                width: "18px",
-                height: "18px",
-                cursor: "pointer",
-              }}
-            />
+  type="checkbox"
+  checked={
+    selectedLeadIds.length === filteredLeads.length &&
+    filteredLeads.length > 0
+  }
+  onChange={(e) => {
+    if (e.target.checked) {
+      setSelectedLeadIds(filteredLeads.map((l) => l.id));
+    } else {
+      setSelectedLeadIds([]);
+    }
+  }}
+  style={{
+    width: "18px",
+    height: "18px",
+    cursor: "pointer",
+  }}
+/>
 
             <span style={{ fontSize: "14px", opacity: 0.8 }}>Select All</span>
 
