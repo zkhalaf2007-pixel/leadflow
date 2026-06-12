@@ -123,7 +123,7 @@ export default function Home() {
   const [status, setStatus] = useState("New");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-
+  const [analyticsConsultant, setAnalyticsConsultant] = useState("All Consultants");
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [toastState, setToastState] = useState<{
     id: number;
@@ -915,24 +915,49 @@ if (assignedLeadCount > 0) {
       </aside>
 
       <section className="content">
-        {activePage !== "dashboard" && (
-  <div className="placeholderPage">
-    <h1 className="pageTitle">
-      {activePage === "analytics" && "Analytics"}
-      {activePage === "consultants" && "Consultants"}
-      {activePage === "reports" && "Reports"}
-      {activePage === "my-leads" && "My Leads"}
-      {activePage === "my-followups" && "My Follow-Ups"}
-      {activePage === "my-performance" && "My Performance"}
-    </h1>
-    <p>This page is ready to be built.</p>
-  </div>
+        {activePage === "analytics" && (
+  <section className="panel">
+    <h1 className="sectionTitle">Consultant Analytics</h1>
+
+    <p style={{ color: "#64748b", marginBottom: "20px" }}>
+      Select a consultant to view performance metrics.
+    </p>
+
+    <select
+  value={analyticsConsultant}
+  onChange={(e) => setAnalyticsConsultant(e.target.value)}
+  style={{
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    minWidth: "240px",
+  }}
+>
+      <option>All Consultants</option>
+
+      {consultantNames.map((name) => (
+        <option key={name}>{name}</option>
+      ))}
+    </select>
+    <div
+  style={{
+    marginTop: "20px",
+    padding: "16px",
+    border: "1px solid #e2e8f0",
+    borderRadius: "12px",
+    background: "#f8fafc",
+  }}
+>
+  <strong>Selected Consultant:</strong>{" "}
+  {analyticsConsultant}
+</div>
+  </section>
 )}
         {activePage === "dashboard" && (
   <header className="header">
           <div>
             <h1 className="pageTitle">Dashboard</h1>
-            {role === "manager" && (
+            {activePage === "dashboard" && role === "manager" && (
               <div className="fieldGroup">
                 <label className="mutedLabel">Manager View</label>
 
