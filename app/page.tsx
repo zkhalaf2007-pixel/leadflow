@@ -124,6 +124,27 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [analyticsConsultant, setAnalyticsConsultant] = useState("All Consultants");
+  const analyticsLeads =
+  analyticsConsultant === "All Consultants"
+    ? leads
+    : leads.filter(
+        (lead) => lead.consultant === analyticsConsultant
+      );
+
+const leadsAssigned = analyticsLeads.length;
+
+const activeLeads = analyticsLeads.filter(
+  (lead) => lead.status !== "Won" && lead.status !== "Lost"
+).length;
+
+const wonDeals = analyticsLeads.filter(
+  (lead) => lead.status === "Won"
+).length;
+
+const conversionRate =
+  leadsAssigned === 0
+    ? 0
+    : Math.round((wonDeals / leadsAssigned) * 100);
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [toastState, setToastState] = useState<{
     id: number;
@@ -951,6 +972,34 @@ if (assignedLeadCount > 0) {
   <strong>Selected Consultant:</strong>{" "}
   {analyticsConsultant}
 </div>
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "16px",
+    marginTop: "20px",
+  }}
+>
+  <div className="panel">
+    <h3>Leads Assigned</h3>
+    <p style={{ fontSize: "28px", fontWeight: 700 }}>{leadsAssigned}</p>
+  </div>
+
+  <div className="panel">
+    <h3>Active Leads</h3>
+    <p style={{ fontSize: "28px", fontWeight: 700 }}>{activeLeads}</p>
+  </div>
+
+  <div className="panel">
+    <h3>Won Deals</h3>
+    <p style={{ fontSize: "28px", fontWeight: 700 }}>{wonDeals}</p>
+  </div>
+
+  <div className="panel">
+    <h3>Conversion Rate</h3>
+    <p style={{ fontSize: "28px", fontWeight: 700 }}>{conversionRate}%</p>
+  </div>
+</div>
   </section>
 )}
         {activePage === "dashboard" && (
@@ -994,7 +1043,7 @@ if (assignedLeadCount > 0) {
         </header>
 )}
 
-        {activePage === "dashboard" && (
+        {activePage === "dashboard" && role === "manager" && (
   <div className="cards">
           <Card label="Total Leads" value={leads.length} />
           <Card
@@ -1006,6 +1055,7 @@ if (assignedLeadCount > 0) {
           <Card label="Won Deals" value={won} color="#16a34a" />
         </div>
         )}
+        {activePage === "dashboard" && role === "manager" && (
           <div className="panel" style={{ marginTop: "24px", padding: "24px" }}>
             <h2 className="sectionTitle">Team Performance</h2>
 
@@ -1068,8 +1118,10 @@ if (assignedLeadCount > 0) {
               </tbody>
             </table>
           </div>
+          )}
 
-        <section
+        {activePage === "dashboard" && (
+<section
           className="panel"
           style={{
             marginBottom: "28px",
@@ -1080,8 +1132,7 @@ if (assignedLeadCount > 0) {
             border: "1px solid #eef2f7",
           }}
         >
-          {activePage === "dashboard" &&
- role === "manager" && (
+          {role === "manager" && (
             <div style={{ marginBottom: "28px" }}>
               <h2 style={{ marginBottom: "16px" }}>
   Manage Consultants ({consultantNames.length})
@@ -1176,7 +1227,9 @@ if (assignedLeadCount > 0) {
               </div>
             </div>
           )}
-          <h2>Add Lead</h2>
+          {activePage === "dashboard" && (
+  <>
+    <h2>Add Lead</h2>
 
           <div
             className="formGrid"
@@ -1338,7 +1391,10 @@ if (assignedLeadCount > 0) {
           >
             Add Lead
           </button>
+            </>
+)}
         </section>
+)}
 
 {activePage === "dashboard" && role === "manager" && (
         <section className="panel" style={{ marginBottom: "24px" }}>
@@ -1371,7 +1427,8 @@ if (assignedLeadCount > 0) {
 </section>
 )}
 
-        <section className="panel" style={{ marginBottom: "24px" }}>
+        {activePage === "dashboard" && (
+  <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>Consultant Scoreboard</h2>
 
           {consultantNames.map((person) => {
@@ -1385,8 +1442,10 @@ if (assignedLeadCount > 0) {
             );
           })}
         </section>
+)}
 
-        <section className="panel" style={{ marginBottom: "24px" }}>
+        {activePage === "dashboard" && (
+  <section className="panel" style={{ marginBottom: "24px" }}>
           <h2>All Leads</h2>
 
           <div
@@ -1502,6 +1561,7 @@ if (assignedLeadCount > 0) {
             />
           ))}
         </section>
+)}
       </section>
       <div
         style={{
