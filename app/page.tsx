@@ -1002,6 +1002,31 @@ if (assignedLeadCount > 0) {
 </div>
   </section>
 )}
+{activePage === "consultants" && (
+  <section className="panel">
+    <h1 className="pageTitle">Consultants</h1>
+
+    <p style={{ color: "#64748b", marginTop: "12px" }}>
+      Manage consultants, assignments, and performance.
+    </p>
+
+    <div style={{ marginTop: "24px" }}>
+      {consultantNames.length === 0 ? (
+        <p>No consultants found.</p>
+      ) : (
+        consultantNames.map((consultant) => (
+          <div
+            key={consultant}
+            className="panel"
+            style={{ marginBottom: "12px" }}
+          >
+            {consultant}
+          </div>
+        ))
+      )}
+    </div>
+  </section>
+)}
         {activePage === "dashboard" && (
   <header className="header">
           <div>
