@@ -1014,18 +1014,67 @@ if (assignedLeadCount > 0) {
       {consultantNames.length === 0 ? (
         <p>No consultants found.</p>
       ) : (
-        consultantNames.map((consultant) => (
-          <div
-            key={consultant}
-            className="panel"
-            style={{ marginBottom: "12px" }}
-          >
-            {consultant}
-          </div>
-        ))
-      )}
+        consultantNames.map((consultant) => {
+  const consultantLeads = leads.filter(
+    (lead) => lead.consultant === consultant
+  );
+
+  const assignedLeads = consultantLeads.length;
+
+  const activeLeads = consultantLeads.filter(
+    (lead) => lead.status !== "Won" && lead.status !== "Lost"
+  ).length;
+
+  const wonDeals = consultantLeads.filter(
+    (lead) => lead.status === "Won"
+  ).length;
+
+  const conversionRate =
+    assignedLeads === 0
+      ? 0
+      : Math.round((wonDeals / assignedLeads) * 100);
+
+  return (
+    <div
+      key={consultant}
+      className="panel"
+      style={{ marginBottom: "12px" }}
+    >
+      <h3>{consultant}</h3>
+      <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "16px",
+    marginTop: "12px",
+  }}
+>
+  <div>
+    <strong>{assignedLeads}</strong>
+    <div>Assigned</div>
+  </div>
+
+  <div>
+    <strong>{activeLeads}</strong>
+    <div>Active</div>
+  </div>
+
+  <div>
+    <strong>{wonDeals}</strong>
+    <div>Won</div>
+  </div>
+
+  <div>
+    <strong>{conversionRate}%</strong>
+    <div>Conversion</div>
+  </div>
+</div>
     </div>
-  </section>
+    );
+})
+)}
+</div>
+</section>
 )}
         {activePage === "dashboard" && (
   <header className="header">
