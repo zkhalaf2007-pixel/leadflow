@@ -1076,6 +1076,26 @@ if (assignedLeadCount > 0) {
 </div>
 </section>
 )}
+{activePage === "reports" && (
+  <section className="panel">
+    <h1 className="pageTitle">Reports</h1>
+
+    <p style={{ color: "#64748b", marginTop: "12px" }}>
+      Charts, trends, and performance reports.
+    </p>
+
+    <div
+      className="panel"
+      style={{ marginTop: "24px", minHeight: "250px" }}
+    >
+      <h3>Lead Pipeline Overview</h3>
+
+      <p style={{ color: "#64748b" }}>
+        Charts coming soon.
+      </p>
+    </div>
+  </section>
+)}
         {activePage === "dashboard" && (
   <header className="header">
           <div>
