@@ -2,6 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient, User } from "@supabase/supabase-js";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -1090,9 +1099,22 @@ if (assignedLeadCount > 0) {
     >
       <h3>Lead Pipeline Overview</h3>
 
-      <p style={{ color: "#64748b" }}>
-        Charts coming soon.
-      </p>
+      <ResponsiveContainer width="100%" height={300}>
+  <BarChart
+    data={consultantNames.map((consultant) => ({
+      consultant,
+      leads: leads.filter(
+        (lead) => lead.consultant === consultant
+      ).length,
+    }))}
+  >
+    <CartesianGrid strokeDasharray="3 3" />
+    <XAxis dataKey="consultant" />
+    <YAxis />
+    <Tooltip />
+    <Bar dataKey="leads" fill="#2563eb" />
+  </BarChart>
+</ResponsiveContainer>
     </div>
   </section>
 )}
