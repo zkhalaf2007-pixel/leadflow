@@ -132,28 +132,25 @@ export default function Home() {
   const [status, setStatus] = useState("New");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [analyticsConsultant, setAnalyticsConsultant] = useState("All Consultants");
+  const [analyticsConsultant, setAnalyticsConsultant] =
+    useState("All Consultants");
   const analyticsLeads =
-  analyticsConsultant === "All Consultants"
-    ? leads
-    : leads.filter(
-        (lead) => lead.consultant === analyticsConsultant
-      );
+    analyticsConsultant === "All Consultants"
+      ? leads
+      : leads.filter((lead) => lead.consultant === analyticsConsultant);
 
-const leadsAssigned = analyticsLeads.length;
+  const leadsAssigned = analyticsLeads.length;
 
-const activeLeads = analyticsLeads.filter(
-  (lead) => lead.status !== "Won" && lead.status !== "Lost"
-).length;
+  const activeLeads = analyticsLeads.filter(
+    (lead) => lead.status !== "Won" && lead.status !== "Lost",
+  ).length;
 
-const wonDeals = analyticsLeads.filter(
-  (lead) => lead.status === "Won"
-).length;
+  const wonDeals = analyticsLeads.filter(
+    (lead) => lead.status === "Won",
+  ).length;
 
-const conversionRate =
-  leadsAssigned === 0
-    ? 0
-    : Math.round((wonDeals / leadsAssigned) * 100);
+  const conversionRate =
+    leadsAssigned === 0 ? 0 : Math.round((wonDeals / leadsAssigned) * 100);
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [toastState, setToastState] = useState<{
     id: number;
@@ -459,15 +456,17 @@ const conversionRate =
   }
 
   async function deleteConsultant(name: string) {
-    const assignedLeadCount = leads.filter((lead) => lead.consultant === name).length;
+    const assignedLeadCount = leads.filter(
+      (lead) => lead.consultant === name,
+    ).length;
 
-if (assignedLeadCount > 0) {
-  showToast(
-    `${name} is assigned to ${assignedLeadCount} lead(s). Reassign them before deleting.`,
-    "delete"
-  );
-  return;
-}
+    if (assignedLeadCount > 0) {
+      showToast(
+        `${name} is assigned to ${assignedLeadCount} lead(s). Reassign them before deleting.`,
+        "delete",
+      );
+      return;
+    }
     const { error } = await supabase
       .from("consultants")
       .delete()
@@ -484,18 +483,20 @@ if (assignedLeadCount > 0) {
     showToast("Consultant removed", "delete");
   }
   async function fetchLeads() {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+  let query = supabase
+    .from("leads")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    const { data, error } = await supabase
-      .from("leads")
-      .select("*")
-      .eq("user_id", userData.user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) return alert("Error loading leads");
-    setLeads(data || []);
+  if (role === "consultant") {
+    query = query.eq("consultant", consultant.trim());
   }
+
+  const { data, error } = await query;
+
+  if (error) return alert("Error loading leads");
+  setLeads(data || []);
+}
 
   async function fetchConsultants() {
     const { data, error } = await supabase
@@ -534,13 +535,15 @@ if (assignedLeadCount > 0) {
     if (error) return alert("Error adding lead");
 
     setName("");
-    setConsultant("");
+    if (role !== "consultant") {
+  setConsultant("");
+}
     setPhone("");
     setReferenceNumber("");
     setLastContact("");
     setStatus("New");
 
-    fetchLeads();
+    await fetchLeads();
     showAddedToast("Lead added successfully");
   }
 
@@ -692,14 +695,18 @@ if (assignedLeadCount > 0) {
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      if (data.user) {
-        fetchRole(data.user.id);
-        fetchConsultants();
-        fetchLeads();
-      }
-    });
+  const loadData = async () => {
+    const { data } = await supabase.auth.getUser();
+
+    setUser(data.user);
+
+    if (data.user) {
+      await fetchRole(data.user.id);
+      await fetchConsultants();
+    }
+  };
+
+  loadData();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
@@ -707,7 +714,6 @@ if (assignedLeadCount > 0) {
         if (session?.user) {
           fetchRole(session.user.id);
           fetchConsultants();
-          fetchLeads();
         } else {
           setRole(null);
           setLeads([]);
@@ -717,6 +723,17 @@ if (assignedLeadCount > 0) {
 
     return () => listener.subscription.unsubscribe();
   }, []);
+  useEffect(() => {
+  if (!role) return;
+  if (role === "consultant" && !consultant) return;
+
+  const timer = window.setTimeout(() => {
+    fetchLeads();
+  }, 0);
+
+  return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [role, consultant]);
   const followUps = leads.filter(
     (l) =>
       l.next_action === "OVERDUE — CALL NOW" ||
@@ -887,289 +904,325 @@ if (assignedLeadCount > 0) {
         <h1 className="brandTitle">LeadFlow</h1>
 
         <div className="navList">
-  <div
-    className={`navText ${activePage === "dashboard" ? "active" : ""}`}
-    onClick={() => setActivePage("dashboard")}
-  >
-    Dashboard
-  </div>
+          <div
+            className={`navText ${activePage === "dashboard" ? "active" : ""}`}
+            onClick={() => setActivePage("dashboard")}
+          >
+            Dashboard
+          </div>
 
-  {role === "manager" ? (
-    <>
-      <div
-        className={`navText ${activePage === "analytics" ? "active" : ""}`}
-        onClick={() => setActivePage("analytics")}
-      >
-        Analytics
-      </div>
+          {role === "manager" ? (
+            <>
+              <div
+                className={`navText ${activePage === "analytics" ? "active" : ""}`}
+                onClick={() => setActivePage("analytics")}
+              >
+                Analytics
+              </div>
 
-      <div
-        className={`navText ${activePage === "consultants" ? "active" : ""}`}
-        onClick={() => setActivePage("consultants")}
-      >
-        Consultants
-      </div>
+              <div
+                className={`navText ${activePage === "consultants" ? "active" : ""}`}
+                onClick={() => setActivePage("consultants")}
+              >
+                Consultants
+              </div>
 
-      <div
-        className={`navText ${activePage === "reports" ? "active" : ""}`}
-        onClick={() => setActivePage("reports")}
-      >
-        Reports
-      </div>
-    </>
-  ) : (
-    <>
-      <div
-        className={`navText ${activePage === "my-leads" ? "active" : ""}`}
-        onClick={() => setActivePage("my-leads")}
-      >
-        My Leads
-      </div>
+              <div
+                className={`navText ${activePage === "reports" ? "active" : ""}`}
+                onClick={() => setActivePage("reports")}
+              >
+                Reports
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className={`navText ${activePage === "my-leads" ? "active" : ""}`}
+                onClick={() => setActivePage("my-leads")}
+              >
+                My Leads
+              </div>
 
-      <div
-        className={`navText ${activePage === "my-followups" ? "active" : ""}`}
-        onClick={() => setActivePage("my-followups")}
-      >
-        My Follow-Ups
-      </div>
+              <div
+                className={`navText ${activePage === "my-followups" ? "active" : ""}`}
+                onClick={() => setActivePage("my-followups")}
+              >
+                My Follow-Ups
+              </div>
 
-      <div
-        className={`navText ${activePage === "my-performance" ? "active" : ""}`}
-        onClick={() => setActivePage("my-performance")}
-      >
-        My Performance
-      </div>
-    </>
-  )}
-</div>
+              <div
+                className={`navText ${activePage === "my-performance" ? "active" : ""}`}
+                onClick={() => setActivePage("my-performance")}
+              >
+                My Performance
+              </div>
+            </>
+          )}
+        </div>
       </aside>
 
       <section className="content">
         {activePage === "analytics" && (
+          <section className="panel">
+            <h1 className="sectionTitle">Consultant Analytics</h1>
+
+            <p style={{ color: "#64748b", marginBottom: "20px" }}>
+              Select a consultant to view performance metrics.
+            </p>
+
+            <select
+              value={analyticsConsultant}
+              onChange={(e) => setAnalyticsConsultant(e.target.value)}
+              style={{
+                padding: "10px",
+                borderRadius: "8px",
+                border: "1px solid #cbd5e1",
+                minWidth: "240px",
+              }}
+            >
+              <option>All Consultants</option>
+
+              {consultantNames.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "16px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                background: "#f8fafc",
+              }}
+            >
+              <strong>Selected Consultant:</strong> {analyticsConsultant}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: "16px",
+                marginTop: "20px",
+              }}
+            >
+              <div className="panel">
+                <h3>Leads Assigned</h3>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>
+                  {leadsAssigned}
+                </p>
+              </div>
+
+              <div className="panel">
+                <h3>Active Leads</h3>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>
+                  {activeLeads}
+                </p>
+              </div>
+
+              <div className="panel">
+                <h3>Won Deals</h3>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>{wonDeals}</p>
+              </div>
+
+              <div className="panel">
+                <h3>Conversion Rate</h3>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>
+                  {conversionRate}%
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+        {activePage === "consultants" && (
+          <section className="panel">
+            <h1 className="pageTitle">Consultants</h1>
+
+            <p style={{ color: "#64748b", marginTop: "12px" }}>
+              Manage consultants, assignments, and performance.
+            </p>
+
+            <div style={{ marginTop: "24px" }}>
+              {consultantNames.length === 0 ? (
+                <p>No consultants found.</p>
+              ) : (
+                consultantNames.map((consultant) => {
+                  const consultantLeads = leads.filter(
+                    (lead) => lead.consultant === consultant,
+                  );
+
+                  const assignedLeads = consultantLeads.length;
+
+                  const activeLeads = consultantLeads.filter(
+                    (lead) => lead.status !== "Won" && lead.status !== "Lost",
+                  ).length;
+
+                  const wonDeals = consultantLeads.filter(
+                    (lead) => lead.status === "Won",
+                  ).length;
+
+                  const conversionRate =
+                    assignedLeads === 0
+                      ? 0
+                      : Math.round((wonDeals / assignedLeads) * 100);
+
+                  return (
+                    <div
+                      key={consultant}
+                      className="panel"
+                      style={{ marginBottom: "12px" }}
+                    >
+                      <h3>{consultant}</h3>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(4, 1fr)",
+                          gap: "16px",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <div>
+                          <strong>{assignedLeads}</strong>
+                          <div>Assigned</div>
+                        </div>
+
+                        <div>
+                          <strong>{activeLeads}</strong>
+                          <div>Active</div>
+                        </div>
+
+                        <div>
+                          <strong>{wonDeals}</strong>
+                          <div>Won</div>
+                        </div>
+
+                        <div>
+                          <strong>{conversionRate}%</strong>
+                          <div>Conversion</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        )}
+        {activePage === "reports" && (
+          <section className="panel">
+            <h1 className="pageTitle">Reports</h1>
+
+            <p style={{ color: "#64748b", marginTop: "12px" }}>
+              Charts, trends, and performance reports.
+            </p>
+
+            <div
+              className="panel"
+              style={{ marginTop: "24px", minHeight: "250px" }}
+            >
+              <h3>Lead Pipeline Overview</h3>
+
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={consultantNames.map((consultant) => ({
+                    consultant,
+                    leads: leads.filter(
+                      (lead) => lead.consultant === consultant,
+                    ).length,
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="consultant" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="leads" fill="#2563eb" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        )}
+        {activePage === "my-leads" && (
   <section className="panel">
-    <h1 className="sectionTitle">Consultant Analytics</h1>
+    <h1 className="pageTitle">My Leads</h1>
 
-    <p style={{ color: "#64748b", marginBottom: "20px" }}>
-      Select a consultant to view performance metrics.
-    </p>
+    <div style={{ marginTop: "20px" }}>
+      {leads
+        .filter(
+  (lead) =>
+    lead.consultant?.trim().toLowerCase() ===
+    consultant.trim().toLowerCase()
+)
+        .map((lead) => (
+          <div
+            key={lead.id}
+            className="panel"
+            style={{ marginBottom: "12px" }}
+          >
+            <strong>{lead.name}</strong>
 
-    <select
-  value={analyticsConsultant}
-  onChange={(e) => setAnalyticsConsultant(e.target.value)}
-  style={{
-    padding: "10px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    minWidth: "240px",
-  }}
->
-      <option>All Consultants</option>
+            <p>
+              Status: {lead.status}
+            </p>
 
-      {consultantNames.map((name) => (
-        <option key={name}>{name}</option>
-      ))}
-    </select>
-    <div
-  style={{
-    marginTop: "20px",
-    padding: "16px",
-    border: "1px solid #e2e8f0",
-    borderRadius: "12px",
-    background: "#f8fafc",
-  }}
->
-  <strong>Selected Consultant:</strong>{" "}
-  {analyticsConsultant}
-</div>
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "16px",
-    marginTop: "20px",
-  }}
->
-  <div className="panel">
-    <h3>Leads Assigned</h3>
-    <p style={{ fontSize: "28px", fontWeight: 700 }}>{leadsAssigned}</p>
-  </div>
-
-  <div className="panel">
-    <h3>Active Leads</h3>
-    <p style={{ fontSize: "28px", fontWeight: 700 }}>{activeLeads}</p>
-  </div>
-
-  <div className="panel">
-    <h3>Won Deals</h3>
-    <p style={{ fontSize: "28px", fontWeight: 700 }}>{wonDeals}</p>
-  </div>
-
-  <div className="panel">
-    <h3>Conversion Rate</h3>
-    <p style={{ fontSize: "28px", fontWeight: 700 }}>{conversionRate}%</p>
-  </div>
-</div>
-  </section>
-)}
-{activePage === "consultants" && (
-  <section className="panel">
-    <h1 className="pageTitle">Consultants</h1>
-
-    <p style={{ color: "#64748b", marginTop: "12px" }}>
-      Manage consultants, assignments, and performance.
-    </p>
-
-    <div style={{ marginTop: "24px" }}>
-      {consultantNames.length === 0 ? (
-        <p>No consultants found.</p>
-      ) : (
-        consultantNames.map((consultant) => {
-  const consultantLeads = leads.filter(
-    (lead) => lead.consultant === consultant
-  );
-
-  const assignedLeads = consultantLeads.length;
-
-  const activeLeads = consultantLeads.filter(
-    (lead) => lead.status !== "Won" && lead.status !== "Lost"
-  ).length;
-
-  const wonDeals = consultantLeads.filter(
-    (lead) => lead.status === "Won"
-  ).length;
-
-  const conversionRate =
-    assignedLeads === 0
-      ? 0
-      : Math.round((wonDeals / assignedLeads) * 100);
-
-  return (
-    <div
-      key={consultant}
-      className="panel"
-      style={{ marginBottom: "12px" }}
-    >
-      <h3>{consultant}</h3>
-      <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "16px",
-    marginTop: "12px",
-  }}
->
-  <div>
-    <strong>{assignedLeads}</strong>
-    <div>Assigned</div>
-  </div>
-
-  <div>
-    <strong>{activeLeads}</strong>
-    <div>Active</div>
-  </div>
-
-  <div>
-    <strong>{wonDeals}</strong>
-    <div>Won</div>
-  </div>
-
-  <div>
-    <strong>{conversionRate}%</strong>
-    <div>Conversion</div>
-  </div>
-</div>
-    </div>
-    );
-})
-)}
-</div>
-</section>
-)}
-{activePage === "reports" && (
-  <section className="panel">
-    <h1 className="pageTitle">Reports</h1>
-
-    <p style={{ color: "#64748b", marginTop: "12px" }}>
-      Charts, trends, and performance reports.
-    </p>
-
-    <div
-      className="panel"
-      style={{ marginTop: "24px", minHeight: "250px" }}
-    >
-      <h3>Lead Pipeline Overview</h3>
-
-      <ResponsiveContainer width="100%" height={300}>
-  <BarChart
-    data={consultantNames.map((consultant) => ({
-      consultant,
-      leads: leads.filter(
-        (lead) => lead.consultant === consultant
-      ).length,
-    }))}
-  >
-    <CartesianGrid strokeDasharray="3 3" />
-    <XAxis dataKey="consultant" />
-    <YAxis />
-    <Tooltip />
-    <Bar dataKey="leads" fill="#2563eb" />
-  </BarChart>
-</ResponsiveContainer>
+            <p>
+              Consultant: {lead.consultant}
+            </p>
+          </div>
+        ))}
     </div>
   </section>
 )}
         {activePage === "dashboard" && (
-  <header className="header">
-          <div>
-            <h1 className="pageTitle">Dashboard</h1>
-            {activePage === "dashboard" && role === "manager" && (
-              <div className="fieldGroup">
-                <label className="mutedLabel">Manager View</label>
+          <header className="header">
+            <div>
+              <h1 className="pageTitle">Dashboard</h1>
+              {activePage === "dashboard" && role === "manager" && (
+                <div className="fieldGroup">
+                  <label className="mutedLabel">Manager View</label>
 
-                <select
-                  value={selectedConsultant}
-                  onChange={(e) => setSelectedConsultant(e.target.value)}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#f9fafb",
-                    fontSize: "14px",
-                    minWidth: "220px",
-                    outline: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="All">All Consultants</option>
-                  {consultantNames.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <p>Logged in as: {role}</p>
-            <p>Manage leads, follow-ups, and consultant activity.</p>
-          </div>
+                  <select
+                    value={selectedConsultant}
+                    onChange={(e) => setSelectedConsultant(e.target.value)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      backgroundColor: "#f9fafb",
+                      fontSize: "14px",
+                      minWidth: "220px",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="All">All Consultants</option>
+                    {consultantNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <p>Logged in as: {role}</p>
+              <p>Manage leads, follow-ups, and consultant activity.</p>
+            </div>
 
-          <button className="darkButton" onClick={logOut}>
-            Log Out
-          </button>
-        </header>
-)}
+            <button className="darkButton" onClick={logOut}>
+              Log Out
+            </button>
+          </header>
+        )}
 
         {activePage === "dashboard" && role === "manager" && (
-  <div className="cards">
-          <Card label="Total Leads" value={leads.length} />
-          <Card
-            label="Urgent Follow-Ups"
-            value={followUps.length}
-            color="#f97316"
-          />
-          <Card label="Overdue" value={overdue} color="#dc2626" />
-          <Card label="Won Deals" value={won} color="#16a34a" />
-        </div>
+          <div className="cards">
+            <Card label="Total Leads" value={leads.length} />
+            <Card
+              label="Urgent Follow-Ups"
+              value={followUps.length}
+              color="#f97316"
+            />
+            <Card label="Overdue" value={overdue} color="#dc2626" />
+            <Card label="Won Deals" value={won} color="#16a34a" />
+          </div>
         )}
         {activePage === "dashboard" && role === "manager" && (
           <div className="panel" style={{ marginTop: "24px", padding: "24px" }}>
@@ -1234,90 +1287,174 @@ if (assignedLeadCount > 0) {
               </tbody>
             </table>
           </div>
-          )}
+        )}
 
         {activePage === "dashboard" && (
-<section
-          className="panel"
-          style={{
-            marginBottom: "28px",
-            padding: "24px",
-            borderRadius: "16px",
-            backgroundColor: "#ffffff",
-            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
-            border: "1px solid #eef2f7",
-          }}
-        >
-          {role === "manager" && (
-            <div style={{ marginBottom: "28px" }}>
-              <h2 style={{ marginBottom: "16px" }}>
-  Manage Consultants ({consultantNames.length})
-</h2>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  marginBottom: "24px",
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="New consultant name"
-                  value={newConsultantName}
-                  onChange={(e) => setNewConsultantName(e.target.value)}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #d1d5db",
-                    flex: 1,
-                    fontSize: "14px",
-                  }}
-                />
-
-                <button
-                  onClick={addConsultant}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#1d4ed8";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#2563eb";
-                  }}
-                  style={{
-                    backgroundColor: "#2563eb",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "10px 16px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "background-color 0.15s ease",
-                  }}
-                >
-                  Add Consultant
-                </button>
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: "8px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Remove Existing Consultant
-                </label>
+          <section
+            className="panel"
+            style={{
+              marginBottom: "28px",
+              padding: "24px",
+              borderRadius: "16px",
+              backgroundColor: "#ffffff",
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+              border: "1px solid #eef2f7",
+            }}
+          >
+            {role === "manager" && (
+              <div style={{ marginBottom: "28px" }}>
+                <h2 style={{ marginBottom: "16px" }}>
+                  Manage Consultants ({consultantNames.length})
+                </h2>
 
                 <div
-                  style={{ display: "flex", gap: "10px", alignItems: "center" }}
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    marginBottom: "24px",
+                    alignItems: "center",
+                  }}
                 >
-                  <select
-                    value={consultantToDelete}
-                    onChange={(e) => setConsultantToDelete(e.target.value)}
+                  <input
+                    type="text"
+                    placeholder="New consultant name"
+                    value={newConsultantName}
+                    onChange={(e) => setNewConsultantName(e.target.value)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid #d1d5db",
+                      flex: 1,
+                      fontSize: "14px",
+                    }}
+                  />
+
+                  <button
+                    onClick={addConsultant}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#1d4ed8";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#2563eb";
+                    }}
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "10px 16px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "background-color 0.15s ease",
+                    }}
                   >
-                    <option value="">Select consultant...</option>
+                    Add Consultant
+                  </button>
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Remove Existing Consultant
+                  </label>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <select
+                      value={consultantToDelete}
+                      onChange={(e) => setConsultantToDelete(e.target.value)}
+                    >
+                      <option value="">Select consultant...</option>
+                      {consultantNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={() => deleteConsultant(consultantToDelete)}
+                      style={{
+                        backgroundColor: "#dc2626",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activePage === "dashboard" && (
+              <>
+                <h2>Add Lead</h2>
+
+                <div
+                  className="formGrid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "16px",
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Client name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "1px solid #2563eb";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "1px solid #d1d5db";
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      width: "100%",
+                      fontSize: "14px",
+                      backgroundColor: "#f9fafb",
+                      outline: "none",
+                    }}
+                  />
+
+                  <select
+                    value={consultant}
+                    onChange={(e) => setConsultant(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "1px solid #2563eb";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "1px solid #d1d5db";
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      width: "100%",
+                      fontSize: "14px",
+                      backgroundColor: "#f9fafb",
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">Select Consultant</option>
                     {consultantNames.map((name) => (
                       <option key={name} value={name}>
                         {name}
@@ -1325,359 +1462,279 @@ if (assignedLeadCount > 0) {
                     ))}
                   </select>
 
-                  <button
-                    onClick={() => deleteConsultant(consultantToDelete)}
+                  <input
+                    type="text"
+                    placeholder="Phone number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "1px solid #2563eb";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "1px solid #d1d5db";
+                    }}
                     style={{
-                      backgroundColor: "#dc2626",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "8px 12px",
-                      fontWeight: 600,
-                      cursor: "pointer",
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      width: "100%",
+                      fontSize: "14px",
+                      backgroundColor: "#f9fafb",
+                    }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Reference number"
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "1px solid #2563eb";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "1px solid #d1d5db";
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      width: "100%",
+                      fontSize: "14px",
+                      backgroundColor: "#f9fafb",
+                    }}
+                  />
+
+                  <input
+                    type="date"
+                    value={lastContact}
+                    onChange={(e) => setLastContact(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.border = "1px solid #2563eb";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.border = "1px solid #d1d5db";
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid #d1d5db",
+                      width: "100%",
+                      fontSize: "14px",
+                      backgroundColor: "#f9fafb",
+                    }}
+                  />
+
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    style={{
+                      padding: "8px",
+                      borderRadius: "6px",
+                      border: "1px solid #ccc",
+                      width: "100%",
                     }}
                   >
-                    Delete
-                  </button>
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
+
+                <button
+                  onClick={addLead}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#15803d";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#16a34a";
+                  }}
+                  style={{
+                    backgroundColor: "#16a34a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "10px 16px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    marginTop: "10px",
+                    transition: "background-color 0.15s ease",
+                  }}
+                >
+                  Add Lead
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {activePage === "dashboard" && role === "manager" && (
+          <section className="panel" style={{ marginBottom: "24px" }}>
+            <h2>Follow-Up Queue</h2>
+
+            {followUps.length === 0 && <p>No urgent leads 🎉</p>}
+
+            {followUps.map((lead: Lead) => (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                selected={selectedLeadIds.includes(lead.id)}
+                onToggleSelected={() => {
+                  setSelectedLeadIds((prev) =>
+                    prev.includes(lead.id)
+                      ? prev.filter((id) => id !== lead.id)
+                      : [...prev, lead.id],
+                  );
+                }}
+                updateStatus={updateStatus}
+                markContacted={markContacted}
+                openWhatsApp={openWhatsApp}
+                deleteLead={deleteLead}
+                updateLeadName={updateLeadName}
+                updateLeadPhone={updateLeadPhone}
+                updateLeadConsultant={updateLeadConsultant}
+                consultantNames={consultantNames}
+              />
+            ))}
+          </section>
+        )}
+
+        {activePage === "dashboard" && (
+          <section className="panel" style={{ marginBottom: "24px" }}>
+            <h2>Consultant Scoreboard</h2>
+
+            {consultantNames.map((person) => {
+              const personLeads = leads.filter((l) => l.consultant === person);
+
+              return (
+                <div className="scoreRow" key={person}>
+                  <strong>{person}</strong>
+                  <span>{personLeads.length} leads</span>
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {activePage === "dashboard" && (
+          <section className="panel" style={{ marginBottom: "24px" }}>
+            <h2>All Leads</h2>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                marginBottom: 12,
+                alignItems: "center",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={
+                  selectedLeadIds.length === filteredLeads.length &&
+                  filteredLeads.length > 0
+                }
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedLeadIds(filteredLeads.map((l) => l.id));
+                  } else {
+                    setSelectedLeadIds([]);
+                  }
+                }}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  cursor: "pointer",
+                }}
+              />
+
+              <span style={{ fontSize: "14px", opacity: 0.8 }}>Select All</span>
+
+              <input
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ flex: 1 }}
+              />
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All</option>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-          {activePage === "dashboard" && (
-  <>
-    <h2>Add Lead</h2>
 
-          <div
-            className="formGrid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "16px",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Client name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onFocus={(e) => {
-                e.currentTarget.style.border = "1px solid #2563eb";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid #d1d5db";
-              }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d1d5db",
-                width: "100%",
-                fontSize: "14px",
-                backgroundColor: "#f9fafb",
-                outline: "none",
-              }}
-            />
+            {selectedLeadIds.length > 0 && (
+              <button
+                className="dangerButton"
+                style={{
+                  position: "fixed",
+                  right: "24px",
+                  bottom: "24px",
+                  zIndex: 50,
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+                  fontWeight: 700,
+                }}
+                onClick={async () => {
+                  const leadsToDelete = filteredLeads.filter((lead) =>
+                    selectedLeadIds.includes(lead.id),
+                  );
 
-            <select
-              value={consultant}
-              onChange={(e) => setConsultant(e.target.value)}
-              onFocus={(e) => {
-                e.currentTarget.style.border = "1px solid #2563eb";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid #d1d5db";
-              }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d1d5db",
-                width: "100%",
-                fontSize: "14px",
-                backgroundColor: "#f9fafb",
-                cursor: "pointer",
-                outline: "none",
-              }}
-            >
-              <option value="">Select Consultant</option>
-              {consultantNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+                  const { error } = await supabase
+                    .from("leads")
+                    .delete()
+                    .in("id", selectedLeadIds);
 
-            <input
-              type="text"
-              placeholder="Phone number"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              onFocus={(e) => {
-                e.currentTarget.style.border = "1px solid #2563eb";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid #d1d5db";
-              }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d1d5db",
-                width: "100%",
-                fontSize: "14px",
-                backgroundColor: "#f9fafb",
-              }}
-            />
+                  if (error) return alert("Error deleting selected leads");
 
-            <input
-              type="text"
-              placeholder="Reference number"
-              value={referenceNumber}
-              onChange={(e) => setReferenceNumber(e.target.value)}
-              onFocus={(e) => {
-                e.currentTarget.style.border = "1px solid #2563eb";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid #d1d5db";
-              }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d1d5db",
-                width: "100%",
-                fontSize: "14px",
-                backgroundColor: "#f9fafb",
-              }}
-            />
+                  setUndoLeads(leadsToDelete);
+                  setUndoLead(null);
 
-            <input
-              type="date"
-              value={lastContact}
-              onChange={(e) => setLastContact(e.target.value)}
-              onFocus={(e) => {
-                e.currentTarget.style.border = "1px solid #2563eb";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.border = "1px solid #d1d5db";
-              }}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "10px",
-                border: "1px solid #d1d5db",
-                width: "100%",
-                fontSize: "14px",
-                backgroundColor: "#f9fafb",
-              }}
-            />
+                  setLeads((prev) =>
+                    prev.filter((lead) => !selectedLeadIds.includes(lead.id)),
+                  );
 
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              style={{
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-                width: "100%",
-              }}
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+                  showUndoToast(`${leadsToDelete.length} leads deleted`);
+                  setSelectedLeadIds([]);
+                }}
+              >
+                Delete {selectedLeadIds.length} selected
+              </button>
+            )}
 
-          <button
-            onClick={addLead}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#15803d";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#16a34a";
-            }}
-            style={{
-              backgroundColor: "#16a34a",
-              color: "white",
-              border: "none",
-              borderRadius: "10px",
-              padding: "10px 16px",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginTop: "10px",
-              transition: "background-color 0.15s ease",
-            }}
-          >
-            Add Lead
-          </button>
-            </>
-)}
-        </section>
-)}
-
-{activePage === "dashboard" && role === "manager" && (
-        <section className="panel" style={{ marginBottom: "24px" }}>
-          <h2>Follow-Up Queue</h2>
-
-          {followUps.length === 0 && <p>No urgent leads 🎉</p>}
-
-          {followUps.map((lead: Lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              selected={selectedLeadIds.includes(lead.id)}
-              onToggleSelected={() => {
-                setSelectedLeadIds((prev) =>
-                  prev.includes(lead.id)
-                    ? prev.filter((id) => id !== lead.id)
-                    : [...prev, lead.id],
-                );
-              }}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-              updateLeadName={updateLeadName}
-              updateLeadPhone={updateLeadPhone}
-              updateLeadConsultant={updateLeadConsultant}
-              consultantNames={consultantNames}
-            />
-              ))}
-</section>
-)}
-
-        {activePage === "dashboard" && (
-  <section className="panel" style={{ marginBottom: "24px" }}>
-          <h2>Consultant Scoreboard</h2>
-
-          {consultantNames.map((person) => {
-            const personLeads = leads.filter((l) => l.consultant === person);
-
-            return (
-              <div className="scoreRow" key={person}>
-                <strong>{person}</strong>
-                <span>{personLeads.length} leads</span>
-              </div>
-            );
-          })}
-        </section>
-)}
-
-        {activePage === "dashboard" && (
-  <section className="panel" style={{ marginBottom: "24px" }}>
-          <h2>All Leads</h2>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              marginBottom: 12,
-              alignItems: "center",
-            }}
-          >
-            <input
-  type="checkbox"
-  checked={
-    selectedLeadIds.length === filteredLeads.length &&
-    filteredLeads.length > 0
-  }
-  onChange={(e) => {
-    if (e.target.checked) {
-      setSelectedLeadIds(filteredLeads.map((l) => l.id));
-    } else {
-      setSelectedLeadIds([]);
-    }
-  }}
-  style={{
-    width: "18px",
-    height: "18px",
-    cursor: "pointer",
-  }}
-/>
-
-            <span style={{ fontSize: "14px", opacity: 0.8 }}>Select All</span>
-
-            <input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ flex: 1 }}
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {selectedLeadIds.length > 0 && (
-            <button
-              className="dangerButton"
-              style={{
-                position: "fixed",
-                right: "24px",
-                bottom: "24px",
-                zIndex: 50,
-                padding: "10px 16px",
-                borderRadius: "10px",
-                boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
-                fontWeight: 700,
-              }}
-              onClick={async () => {
-                const leadsToDelete = filteredLeads.filter((lead) =>
-                  selectedLeadIds.includes(lead.id),
-                );
-
-                const { error } = await supabase
-                  .from("leads")
-                  .delete()
-                  .in("id", selectedLeadIds);
-
-                if (error) return alert("Error deleting selected leads");
-
-                setUndoLeads(leadsToDelete);
-                setUndoLead(null);
-
-                setLeads((prev) =>
-                  prev.filter((lead) => !selectedLeadIds.includes(lead.id)),
-                );
-
-                showUndoToast(`${leadsToDelete.length} leads deleted`);
-                setSelectedLeadIds([]);
-              }}
-            >
-              Delete {selectedLeadIds.length} selected
-            </button>
-          )}
-
-          {filteredLeads.map((lead: Lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              selected={selectedLeadIds.includes(lead.id)}
-              onToggleSelected={() => {
-                setSelectedLeadIds((prev) =>
-                  prev.includes(lead.id)
-                    ? prev.filter((id) => id !== lead.id)
-                    : [...prev, lead.id],
-                );
-              }}
-              updateStatus={updateStatus}
-              markContacted={markContacted}
-              openWhatsApp={openWhatsApp}
-              deleteLead={deleteLead}
-              updateLeadName={updateLeadName}
-              updateLeadPhone={updateLeadPhone}
-              updateLeadConsultant={updateLeadConsultant}
-              consultantNames={consultantNames}
-            />
-          ))}
-        </section>
-)}
+            {filteredLeads.map((lead: Lead) => (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                selected={selectedLeadIds.includes(lead.id)}
+                onToggleSelected={() => {
+                  setSelectedLeadIds((prev) =>
+                    prev.includes(lead.id)
+                      ? prev.filter((id) => id !== lead.id)
+                      : [...prev, lead.id],
+                  );
+                }}
+                updateStatus={updateStatus}
+                markContacted={markContacted}
+                openWhatsApp={openWhatsApp}
+                deleteLead={deleteLead}
+                updateLeadName={updateLeadName}
+                updateLeadPhone={updateLeadPhone}
+                updateLeadConsultant={updateLeadConsultant}
+                consultantNames={consultantNames}
+              />
+            ))}
+          </section>
+        )}
       </section>
       <div
         style={{
