@@ -1,20 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient, User } from "@supabase/supabase-js";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { createPortal } from "react-dom";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 type Lead = {
@@ -27,6 +20,30 @@ type Lead = {
   next_action: string;
   status: string;
   user_id: string;
+  source_type?: string;
+  submitted?: boolean;
+  submitted_at?: string | null;
+  assigned_by?: string | null;
+  avatar_url?: string | null;
+  notes?: string | null;
+  last_contact_date?: string | null;
+  next_follow_up_date?: string | null;
+};
+
+type LeadActivity = {
+  id: string;
+  lead_id: string;
+  activity_type: string;
+  activity_text: string;
+  created_at: string;
+};
+
+type LeadAttachment = {
+  id: string;
+  lead_id: string;
+  file_name: string;
+  file_url: string;
+  created_at: string;
 };
 
 const STATUS_OPTIONS = [
@@ -49,9 +66,7 @@ function getNextAction(lastContact: string | null) {
   const today = new Date();
   const last = new Date(lastContact);
 
-  const diffDays = Math.floor(
-    (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const diffDays = Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays >= 3) return "OVERDUE — CALL NOW";
   if (diffDays === 2) return "Follow Up Today";
@@ -63,8 +78,7 @@ function badgeColor(value: string) {
   if (value?.includes("OVERDUE")) return "#dc2626";
   if (value === "Follow Up Today") return "#f97316";
   if (value === "Check Soon") return "#ca8a04";
-  if (value === "Up to Date" || value === "Won" || value === "Followed Up")
-    return "#16a34a";
+  if (value === "Up to Date" || value === "Won" || value === "Followed Up") return "#16a34a";
   if (value === "Lost") return "#dc2626";
   if (value === "Viewing Scheduled") return "#2563eb";
   if (value === "Offer Made") return "#7c3aed";
@@ -91,7 +105,7 @@ export default function Home() {
   }, []);
   function playSound(
     soundRef: React.RefObject<HTMLAudioElement | null>,
-    options?: { volume?: number; playbackRate?: number },
+    options?: { volume?: number; playbackRate?: number }
   ) {
     const baseSound = soundRef.current;
     if (!baseSound?.src) return;
@@ -132,8 +146,7 @@ export default function Home() {
   const [status, setStatus] = useState("New");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [analyticsConsultant, setAnalyticsConsultant] =
-    useState("All Consultants");
+  const [analyticsConsultant, setAnalyticsConsultant] = useState("All Consultants");
   const analyticsLeads =
     analyticsConsultant === "All Consultants"
       ? leads
@@ -142,15 +155,12 @@ export default function Home() {
   const leadsAssigned = analyticsLeads.length;
 
   const activeLeads = analyticsLeads.filter(
-    (lead) => lead.status !== "Won" && lead.status !== "Lost",
+    (lead) => lead.status !== "Won" && lead.status !== "Lost"
   ).length;
 
-  const wonDeals = analyticsLeads.filter(
-    (lead) => lead.status === "Won",
-  ).length;
+  const wonDeals = analyticsLeads.filter((lead) => lead.status === "Won").length;
 
-  const conversionRate =
-    leadsAssigned === 0 ? 0 : Math.round((wonDeals / leadsAssigned) * 100);
+  const conversionRate = leadsAssigned === 0 ? 0 : Math.round((wonDeals / leadsAssigned) * 100);
   const [undoLead, setUndoLead] = useState<Lead | null>(null);
   const [toastState, setToastState] = useState<{
     id: number;
@@ -158,16 +168,10 @@ export default function Home() {
     type: "normal" | "undo" | "delete" | "restore";
     seconds: number;
   } | null>(null);
-  const [addedToastStack, setAddedToastStack] = useState<
-    { id: number; message: string }[]
-  >([]);
+  const [addedToastStack, setAddedToastStack] = useState<{ id: number; message: string }[]>([]);
   const [consultantNames, setConsultantNames] = useState<string[]>([]);
-  const [addedToastDragX, setAddedToastDragX] = useState<
-    Record<number, number>
-  >({});
-  const [exitingAddedToastIds, setExitingAddedToastIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [addedToastDragX, setAddedToastDragX] = useState<Record<number, number>>({});
+  const [exitingAddedToastIds, setExitingAddedToastIds] = useState<Set<number>>(new Set());
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
 
   const addedToastDragStartRef = useRef<
@@ -255,10 +259,8 @@ export default function Home() {
 
     if (toastTimerRef.current) clearInterval(toastTimerRef.current);
     if (normalToastTimerRef.current) clearTimeout(normalToastTimerRef.current);
-    if (countdownSoundTimeoutRef.current)
-      clearTimeout(countdownSoundTimeoutRef.current);
-    if (finalToastTimeoutRef.current)
-      clearTimeout(finalToastTimeoutRef.current);
+    if (countdownSoundTimeoutRef.current) clearTimeout(countdownSoundTimeoutRef.current);
+    if (finalToastTimeoutRef.current) clearTimeout(finalToastTimeoutRef.current);
     if (undoTickTimeoutRef.current) clearTimeout(undoTickTimeoutRef.current);
 
     toastTimerRef.current = null;
@@ -269,10 +271,7 @@ export default function Home() {
     finalPlayedRef.current = false;
   }
 
-  function showToast(
-    message: string,
-    type: "normal" | "undo" | "delete" | "restore" = "normal",
-  ) {
+  function showToast(message: string, type: "normal" | "undo" | "delete" | "restore" = "normal") {
     clearAllToastTimers();
 
     const id = toastRunIdRef.current + 1;
@@ -435,9 +434,7 @@ export default function Home() {
       return;
     }
     const cleanName = newConsultantName.trim();
-    const exists = consultants.some(
-      (c) => c.toLowerCase() === cleanName.toLowerCase(),
-    );
+    const exists = consultants.some((c) => c.toLowerCase() === cleanName.toLowerCase());
 
     if (exists) {
       alert("This consultant already exists.");
@@ -456,21 +453,16 @@ export default function Home() {
   }
 
   async function deleteConsultant(name: string) {
-    const assignedLeadCount = leads.filter(
-      (lead) => lead.consultant === name,
-    ).length;
+    const assignedLeadCount = leads.filter((lead) => lead.consultant === name).length;
 
     if (assignedLeadCount > 0) {
       showToast(
         `${name} is assigned to ${assignedLeadCount} lead(s). Reassign them before deleting.`,
-        "delete",
+        "delete"
       );
       return;
     }
-    const { error } = await supabase
-      .from("consultants")
-      .delete()
-      .eq("name", name);
+    const { error } = await supabase.from("consultants").delete().eq("name", name);
 
     if (error) {
       console.error("Error deleting consultant:", error);
@@ -483,20 +475,17 @@ export default function Home() {
     showToast("Consultant removed", "delete");
   }
   async function fetchLeads() {
-  let query = supabase
-    .from("leads")
-    .select("*")
-    .order("created_at", { ascending: false });
+    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
-  if (role === "consultant") {
-    query = query.eq("consultant", consultant.trim());
+    if (role === "consultant") {
+      query = query.eq("consultant", consultant.trim());
+    }
+
+    const { data, error } = await query;
+
+    if (error) return alert("Error loading leads");
+    setLeads(data || []);
   }
-
-  const { data, error } = await query;
-
-  if (error) return alert("Error loading leads");
-  setLeads(data || []);
-}
 
   async function fetchConsultants() {
     const { data, error } = await supabase
@@ -530,14 +519,19 @@ export default function Home() {
       next_action: getNextAction(lastContact || null),
       status,
       user_id: user!.id,
+      source_type: role === "manager" ? "manager-assigned" : "self-created",
+
+      submitted: false,
+
+      assigned_by: role === "manager" ? user?.id : null,
     });
 
     if (error) return alert("Error adding lead");
 
     setName("");
     if (role !== "consultant") {
-  setConsultant("");
-}
+      setConsultant("");
+    }
     setPhone("");
     setReferenceNumber("");
     setLastContact("");
@@ -559,14 +553,9 @@ export default function Home() {
   }
 
   async function updateLeadName(id: string, newName: string) {
-    setLeads((prev) =>
-      prev.map((lead) => (lead.id === id ? { ...lead, name: newName } : lead)),
-    );
+    setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, name: newName } : lead)));
 
-    const { error } = await supabase
-      .from("leads")
-      .update({ name: newName })
-      .eq("id", id);
+    const { error } = await supabase.from("leads").update({ name: newName }).eq("id", id);
 
     if (error) {
       alert("Error updating lead name");
@@ -575,16 +564,9 @@ export default function Home() {
   }
 
   async function updateLeadPhone(id: string, newPhone: string) {
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === id ? { ...lead, phone: newPhone } : lead,
-      ),
-    );
+    setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, phone: newPhone } : lead)));
 
-    const { error } = await supabase
-      .from("leads")
-      .update({ phone: newPhone })
-      .eq("id", id);
+    const { error } = await supabase.from("leads").update({ phone: newPhone }).eq("id", id);
 
     if (error) {
       alert("Error updating lead phone");
@@ -594,9 +576,7 @@ export default function Home() {
 
   async function updateLeadConsultant(id: string, newConsultant: string) {
     setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === id ? { ...lead, consultant: newConsultant } : lead,
-      ),
+      prev.map((lead) => (lead.id === id ? { ...lead, consultant: newConsultant } : lead))
     );
 
     const { error } = await supabase
@@ -673,20 +653,14 @@ export default function Home() {
       .eq("id", lead.id);
 
     const cleanPhone = phone.replace(/\D/g, "");
-    window.open(
-      `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`,
-      "_blank",
-    );
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
 
     fetchLeads();
     showToast("WhatsApp follow-up opened");
   }
 
   async function updateStatus(id: string, newStatus: string) {
-    const { error } = await supabase
-      .from("leads")
-      .update({ status: newStatus })
-      .eq("id", id);
+    const { error } = await supabase.from("leads").update({ status: newStatus }).eq("id", id);
 
     if (error) return alert("Error updating status");
 
@@ -694,55 +668,77 @@ export default function Home() {
     showToast("Status updated");
   }
 
+  async function markSubmitted(id: string) {
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        submitted: true,
+        submitted_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) return alert("Error submitting lead");
+
+    await fetchLeads();
+  }
+
+  async function unsubmitLead(id: string) {
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        submitted: false,
+        submitted_at: null,
+      })
+      .eq("id", id);
+
+    if (error) return alert("Error unsubmitting lead");
+
+    await fetchLeads();
+  }
+
   useEffect(() => {
-  const loadData = async () => {
-    const { data } = await supabase.auth.getUser();
+    const loadData = async () => {
+      const { data } = await supabase.auth.getUser();
 
-    setUser(data.user);
+      setUser(data.user);
 
-    if (data.user) {
-      await fetchRole(data.user.id);
-      await fetchConsultants();
-    }
-  };
+      if (data.user) {
+        await fetchRole(data.user.id);
+        await fetchConsultants();
+      }
+    };
 
-  loadData();
+    loadData();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null);
-        if (session?.user) {
-          fetchRole(session.user.id);
-          fetchConsultants();
-        } else {
-          setRole(null);
-          setLeads([]);
-        }
-      },
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+      if (session?.user) {
+        fetchRole(session.user.id);
+        fetchConsultants();
+      } else {
+        setRole(null);
+        setLeads([]);
+      }
+    });
 
     return () => listener.subscription.unsubscribe();
   }, []);
   useEffect(() => {
-  if (!role) return;
-  if (role === "consultant" && !consultant) return;
+    if (!role) return;
+    if (role === "consultant" && !consultant) return;
 
-  const timer = window.setTimeout(() => {
-    fetchLeads();
-  }, 0);
+    const timer = window.setTimeout(() => {
+      fetchLeads();
+    }, 0);
 
-  return () => window.clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [role, consultant]);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, consultant]);
   const followUps = leads.filter(
-    (l) =>
-      l.next_action === "OVERDUE — CALL NOW" ||
-      l.next_action === "Follow Up Today",
+    (l) => l.next_action === "OVERDUE — CALL NOW" || l.next_action === "Follow Up Today"
   );
 
-  const overdue = leads.filter(
-    (l) => l.next_action === "OVERDUE — CALL NOW",
-  ).length;
+  const overdue = leads.filter((l) => l.next_action === "OVERDUE — CALL NOW").length;
 
   const won = leads.filter((l) => l.status === "Won").length;
   const consultantStats = consultantNames.map((name) => {
@@ -753,27 +749,19 @@ export default function Home() {
       total: consultantLeads.length,
       followUps: consultantLeads.filter(
         (lead) =>
-          lead.next_action === "OVERDUE — CALL NOW" ||
-          lead.next_action === "Follow Up Today",
+          lead.next_action === "OVERDUE — CALL NOW" || lead.next_action === "Follow Up Today"
       ).length,
-      overdue: consultantLeads.filter(
-        (lead) => lead.next_action === "OVERDUE — CALL NOW",
-      ).length,
+      overdue: consultantLeads.filter((lead) => lead.next_action === "OVERDUE — CALL NOW").length,
       won: consultantLeads.filter((lead) => lead.status === "Won").length,
     };
   });
   const filteredLeads = leads
     .filter((lead) => {
-      // 🔐 ROLE FILTER (THIS IS THE NEW PART)
       if (role === "consultant") {
         return lead.consultant === consultant;
       }
 
-      if (selectedConsultant !== "All") {
-        return lead.consultant === selectedConsultant;
-      }
-
-      return true; // manager sees all
+      return true;
     })
     .filter((lead) => {
       // 🔍 existing search filter
@@ -781,12 +769,52 @@ export default function Home() {
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (lead.phone || "").includes(searchTerm);
 
-      const matchesStatus =
-        statusFilter === "All" || lead.status === statusFilter;
+      const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
+  const todayDateString = new Date().toISOString().split("T")[0];
 
+  const overdueLeads = leads.filter(
+    (lead) => lead.next_follow_up_date && lead.next_follow_up_date < todayDateString
+  );
+
+  const dueTodayLeads = leads.filter((lead) => lead.next_follow_up_date === todayDateString);
+
+  const upcomingFollowUpLeads = leads.filter(
+    (lead) => lead.next_follow_up_date && lead.next_follow_up_date > todayDateString
+  );
+
+  const getLeadPriority = (lead: Lead) => {
+    if (!lead.next_follow_up_date) return "Low";
+    if (lead.next_follow_up_date < todayDateString) return "High";
+    if (lead.next_follow_up_date === todayDateString) return "Medium";
+    return "Low";
+  };
+
+  const getAttentionScore = (lead: Lead) => {
+    if (!lead.next_follow_up_date) return 0;
+
+    const diffDays = Math.ceil(
+      (new Date(todayDateString).getTime() - new Date(lead.next_follow_up_date).getTime()) /
+        86400000
+    );
+
+    return Math.max(diffDays, 0);
+  };
+  const getRecommendedAction = (lead: Lead) => {
+    const score = getAttentionScore(lead);
+    const priority = getLeadPriority(lead);
+
+    if (score >= 7) return "Urgent: contact immediately";
+    if (score >= 3) return "High priority follow-up";
+    if (priority === "Medium") return "Follow up today";
+
+    return "Monitor";
+  };
+  const attentionQueueLeads = [...overdueLeads].sort(
+    (a, b) => getAttentionScore(b) - getAttentionScore(a)
+  );
   if (!user) {
     return (
       <main className="loginPage">
@@ -944,6 +972,18 @@ export default function Home() {
               </div>
 
               <div
+                className={`navText ${activePage === "assigned-leads" ? "active" : ""}`}
+                onClick={() => setActivePage("assigned-leads")}
+              >
+                Assigned Leads (
+                {
+                  leads.filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
+                    .length
+                }
+                )
+              </div>
+
+              <div
                 className={`navText ${activePage === "my-followups" ? "active" : ""}`}
                 onClick={() => setActivePage("my-followups")}
               >
@@ -1007,16 +1047,12 @@ export default function Home() {
             >
               <div className="panel">
                 <h3>Leads Assigned</h3>
-                <p style={{ fontSize: "28px", fontWeight: 700 }}>
-                  {leadsAssigned}
-                </p>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>{leadsAssigned}</p>
               </div>
 
               <div className="panel">
                 <h3>Active Leads</h3>
-                <p style={{ fontSize: "28px", fontWeight: 700 }}>
-                  {activeLeads}
-                </p>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>{activeLeads}</p>
               </div>
 
               <div className="panel">
@@ -1026,9 +1062,21 @@ export default function Home() {
 
               <div className="panel">
                 <h3>Conversion Rate</h3>
-                <p style={{ fontSize: "28px", fontWeight: 700 }}>
-                  {conversionRate}%
-                </p>
+                <p style={{ fontSize: "28px", fontWeight: 700 }}>{conversionRate}%</p>
+              </div>
+              <div className="statCard">
+                <h3>Overdue Follow-Ups</h3>
+                <p>{overdueLeads.length}</p>
+              </div>
+
+              <div className="statCard">
+                <h3>Due Today</h3>
+                <p>{dueTodayLeads.length}</p>
+              </div>
+
+              <div className="statCard">
+                <h3>Upcoming Follow-Ups</h3>
+                <p>{upcomingFollowUpLeads.length}</p>
               </div>
             </div>
           </section>
@@ -1046,31 +1094,21 @@ export default function Home() {
                 <p>No consultants found.</p>
               ) : (
                 consultantNames.map((consultant) => {
-                  const consultantLeads = leads.filter(
-                    (lead) => lead.consultant === consultant,
-                  );
+                  const consultantLeads = leads.filter((lead) => lead.consultant === consultant);
 
                   const assignedLeads = consultantLeads.length;
 
                   const activeLeads = consultantLeads.filter(
-                    (lead) => lead.status !== "Won" && lead.status !== "Lost",
+                    (lead) => lead.status !== "Won" && lead.status !== "Lost"
                   ).length;
 
-                  const wonDeals = consultantLeads.filter(
-                    (lead) => lead.status === "Won",
-                  ).length;
+                  const wonDeals = consultantLeads.filter((lead) => lead.status === "Won").length;
 
                   const conversionRate =
-                    assignedLeads === 0
-                      ? 0
-                      : Math.round((wonDeals / assignedLeads) * 100);
+                    assignedLeads === 0 ? 0 : Math.round((wonDeals / assignedLeads) * 100);
 
                   return (
-                    <div
-                      key={consultant}
-                      className="panel"
-                      style={{ marginBottom: "12px" }}
-                    >
+                    <div key={consultant} className="panel" style={{ marginBottom: "12px" }}>
                       <h3>{consultant}</h3>
                       <div
                         style={{
@@ -1115,19 +1153,14 @@ export default function Home() {
               Charts, trends, and performance reports.
             </p>
 
-            <div
-              className="panel"
-              style={{ marginTop: "24px", minHeight: "250px" }}
-            >
+            <div className="panel" style={{ marginTop: "24px", minHeight: "250px" }}>
               <h3>Lead Pipeline Overview</h3>
 
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={consultantNames.map((consultant) => ({
                     consultant,
-                    leads: leads.filter(
-                      (lead) => lead.consultant === consultant,
-                    ).length,
+                    leads: leads.filter((lead) => lead.consultant === consultant).length,
                   }))}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -1141,36 +1174,179 @@ export default function Home() {
           </section>
         )}
         {activePage === "my-leads" && (
-  <section className="panel">
-    <h1 className="pageTitle">My Leads</h1>
+          <section className="panel">
+            <h1 className="pageTitle">My Leads</h1>
 
-    <div style={{ marginTop: "20px" }}>
-      {leads
-        .filter(
-  (lead) =>
-    lead.consultant?.trim().toLowerCase() ===
-    consultant.trim().toLowerCase()
-)
-        .map((lead) => (
-          <div
-            key={lead.id}
-            className="panel"
-            style={{ marginBottom: "12px" }}
-          >
-            <strong>{lead.name}</strong>
+            <div style={{ marginTop: "20px" }}>
+              {leads
+                .filter(
+                  (lead) =>
+                    lead.consultant?.trim().toLowerCase() === consultant.trim().toLowerCase() &&
+                    lead.source_type !== "manager-assigned"
+                )
+                .map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    selected={selectedLeadIds.includes(lead.id)}
+                    onToggleSelected={() =>
+                      setSelectedLeadIds((prev) =>
+                        prev.includes(lead.id)
+                          ? prev.filter((id) => id !== lead.id)
+                          : [...prev, lead.id]
+                      )
+                    }
+                    updateStatus={updateStatus}
+                    markContacted={markContacted}
+                    openWhatsApp={openWhatsApp}
+                    deleteLead={deleteLead}
+                    markSubmitted={markSubmitted}
+                    updateLeadName={updateLeadName}
+                    updateLeadPhone={updateLeadPhone}
+                    updateLeadConsultant={updateLeadConsultant}
+                    consultantNames={consultantNames}
+                  />
+                ))}
+            </div>
+          </section>
+        )}
+        {activePage === "my-followups" && (
+          <section className="panel">
+            <h1 className="pageTitle">My Follow-Ups</h1>
 
-            <p>
-              Status: {lead.status}
-            </p>
+            <div style={{ marginTop: "20px" }}>
+              {leads
+                .filter(
+                  (lead) =>
+                    lead.consultant?.trim().toLowerCase() === consultant.trim().toLowerCase() &&
+                    lead.status !== "Closed"
+                )
+                .map((lead) => (
+                  <div key={lead.id} className="panel" style={{ marginBottom: "12px" }}>
+                    <strong>{lead.name}</strong>
+                    <div className={`priorityBadge priority${getLeadPriority(lead)}`}>
+                      Priority: {getLeadPriority(lead)}
+                    </div>
+                    <div>Attention Score: {getAttentionScore(lead)}</div>
 
-            <p>
-              Consultant: {lead.consultant}
-            </p>
-          </div>
-        ))}
-    </div>
-  </section>
-)}
+                    <p>Status: {lead.status}</p>
+                    <div className="actionBadge">Next Step: {getRecommendedAction(lead)}</div>
+                    <div className={`priorityBadge priority${getLeadPriority(lead)}`}>
+                      Priority: {getLeadPriority(lead)}
+                    </div>
+                    <p>Phone: {lead.phone}</p>
+                    <p>Ref: {lead.reference_number}</p>
+                    <div className="leadDateRow">
+                      <label>
+                        Last Contact
+                        <input
+                          type="date"
+                          defaultValue={lead.last_contact_date || ""}
+                          onChange={async (e) => {
+                            await supabase
+                              .from("leads")
+                              .update({ last_contact_date: e.target.value || null })
+                              .eq("id", lead.id);
+
+                            await supabase.from("lead_activity").insert({
+                              lead_id: lead.id,
+                              activity_type: "last_contact_updated",
+                              activity_text: `Last contact date set to ${e.target.value}`,
+                            });
+                          }}
+                        />
+                      </label>
+
+                      <label>
+                        Next Follow-Up
+                        <input
+                          type="date"
+                          defaultValue={lead.next_follow_up_date || ""}
+                          onChange={async (e) => {
+                            await supabase
+                              .from("leads")
+                              .update({ next_follow_up_date: e.target.value || null })
+                              .eq("id", lead.id);
+
+                            await supabase.from("lead_activity").insert({
+                              lead_id: lead.id,
+                              activity_type: "follow_up_updated",
+                              activity_text: `Follow-up date set to ${e.target.value}`,
+                            });
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <button onClick={() => updateStatus(lead.id, "Contacted")}>
+                      Mark Contacted
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+
+        {activePage === "assigned-leads" && (
+          <section className="panel">
+            <h1 className="pageTitle">Assigned Leads</h1>
+
+            <h2>Active Assignments</h2>
+
+            {leads
+              .filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
+              .map((lead) => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  selected={selectedLeadIds.includes(lead.id)}
+                  onToggleSelected={() =>
+                    setSelectedLeadIds((prev) =>
+                      prev.includes(lead.id)
+                        ? prev.filter((id) => id !== lead.id)
+                        : [...prev, lead.id]
+                    )
+                  }
+                  updateStatus={updateStatus}
+                  markContacted={markContacted}
+                  openWhatsApp={openWhatsApp}
+                  deleteLead={deleteLead}
+                  markSubmitted={markSubmitted}
+                  updateLeadName={updateLeadName}
+                  updateLeadPhone={updateLeadPhone}
+                  updateLeadConsultant={updateLeadConsultant}
+                  consultantNames={consultantNames}
+                />
+              ))}
+
+            <h2 style={{ marginTop: "30px" }}>Submitted</h2>
+
+            {leads
+              .filter((lead) => lead.source_type === "manager-assigned" && lead.submitted)
+              .map((lead) => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  selected={selectedLeadIds.includes(lead.id)}
+                  onToggleSelected={() =>
+                    setSelectedLeadIds((prev) =>
+                      prev.includes(lead.id)
+                        ? prev.filter((id) => id !== lead.id)
+                        : [...prev, lead.id]
+                    )
+                  }
+                  updateStatus={updateStatus}
+                  markContacted={markContacted}
+                  openWhatsApp={openWhatsApp}
+                  deleteLead={deleteLead}
+                  markSubmitted={unsubmitLead}
+                  updateLeadName={updateLeadName}
+                  updateLeadPhone={updateLeadPhone}
+                  updateLeadConsultant={updateLeadConsultant}
+                  consultantNames={consultantNames}
+                />
+              ))}
+          </section>
+        )}
         {activePage === "dashboard" && (
           <header className="header">
             <div>
@@ -1215,11 +1391,7 @@ export default function Home() {
         {activePage === "dashboard" && role === "manager" && (
           <div className="cards">
             <Card label="Total Leads" value={leads.length} />
-            <Card
-              label="Urgent Follow-Ups"
-              value={followUps.length}
-              color="#f97316"
-            />
+            <Card label="Urgent Follow-Ups" value={followUps.length} color="#f97316" />
             <Card label="Overdue" value={overdue} color="#dc2626" />
             <Card label="Won Deals" value={won} color="#16a34a" />
           </div>
@@ -1251,9 +1423,7 @@ export default function Home() {
                   <tr
                     key={stat.name}
                     onClick={() =>
-                      setSelectedConsultant(
-                        selectedConsultant === stat.name ? "All" : stat.name,
-                      )
+                      setSelectedConsultant(selectedConsultant === stat.name ? "All" : stat.name)
                     }
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = "#f1f5f9";
@@ -1584,13 +1754,14 @@ export default function Home() {
                   setSelectedLeadIds((prev) =>
                     prev.includes(lead.id)
                       ? prev.filter((id) => id !== lead.id)
-                      : [...prev, lead.id],
+                      : [...prev, lead.id]
                   );
                 }}
                 updateStatus={updateStatus}
                 markContacted={markContacted}
                 openWhatsApp={openWhatsApp}
                 deleteLead={deleteLead}
+                markSubmitted={markSubmitted}
                 updateLeadName={updateLeadName}
                 updateLeadPhone={updateLeadPhone}
                 updateLeadConsultant={updateLeadConsultant}
@@ -1599,7 +1770,91 @@ export default function Home() {
             ))}
           </section>
         )}
+        <div className="dashboardStats">
+          <div className="statCard">
+            <h3>Overdue Follow-Ups</h3>
+            <p>{overdueLeads.length}</p>
+          </div>
 
+          <div className="statCard">
+            <h3>Due Today</h3>
+            <p>{dueTodayLeads.length}</p>
+          </div>
+
+          <div className="statCard">
+            <h3>Upcoming Follow-Ups</h3>
+            <p>{upcomingFollowUpLeads.length}</p>
+          </div>
+        </div>
+        <div className="panel" style={{ marginBottom: "24px" }}>
+          <h2>🔴 Needs Attention</h2>
+
+          {attentionQueueLeads.length === 0 ? (
+            <p>No overdue follow-ups.</p>
+          ) : (
+            attentionQueueLeads.map((lead) => (
+              <div key={lead.id} className="timelineEvent">
+                <strong>{lead.name}</strong>
+                <div className={`priorityBadge priority${getLeadPriority(lead)}`}>
+                  <div>Attention Score: {getAttentionScore(lead)}</div>
+                  <div className="actionBadge">Next Step: {getRecommendedAction(lead)}</div>
+                  Priority: {getLeadPriority(lead)}
+                </div>
+                <div>Follow-up date: {lead.next_follow_up_date}</div>
+                <div>
+                  Overdue by{" "}
+                  {Math.ceil(
+                    (new Date(todayDateString).getTime() -
+                      new Date(lead.next_follow_up_date || todayDateString).getTime()) /
+                      86400000
+                  )}{" "}
+                  day(s)
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="panel" style={{ marginBottom: "24px" }}>
+          <h2>🟢 Due Today</h2>
+
+          {dueTodayLeads.length === 0 ? (
+            <p>No follow-ups due today.</p>
+          ) : (
+            dueTodayLeads.map((lead) => (
+              <div key={lead.id} className="timelineEvent">
+                <strong>{lead.name}</strong>
+                <div className="actionBadge">Next Step: {getRecommendedAction(lead)}</div>
+                <div className={`priorityBadge priority${getLeadPriority(lead)}`}>
+                  Priority: {getLeadPriority(lead)}
+                </div>
+                <div>Follow-up date: {lead.next_follow_up_date}</div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="panel" style={{ marginBottom: "24px" }}>
+          <h2>⏳ Upcoming Follow-Ups</h2>
+
+          {upcomingFollowUpLeads.length === 0 ? (
+            <p>No upcoming follow-ups.</p>
+          ) : (
+            upcomingFollowUpLeads
+              .slice()
+              .sort((a, b) =>
+                (a.next_follow_up_date || "").localeCompare(b.next_follow_up_date || "")
+              )
+              .map((lead) => (
+                <div key={lead.id} className="timelineEvent">
+                  <strong>{lead.name}</strong>
+                  <div className="actionBadge">Next Step: {getRecommendedAction(lead)}</div>
+                  <div className={`priorityBadge priority${getLeadPriority(lead)}`}>
+                    Priority: {getLeadPriority(lead)}
+                  </div>
+                  <div>Follow-up date: {lead.next_follow_up_date}</div>
+                </div>
+              ))
+          )}
+        </div>
         {activePage === "dashboard" && (
           <section className="panel" style={{ marginBottom: "24px" }}>
             <h2>Consultant Scoreboard</h2>
@@ -1632,10 +1887,9 @@ export default function Home() {
               <input
                 type="checkbox"
                 checked={
-                  selectedLeadIds.length === filteredLeads.length &&
-                  filteredLeads.length > 0
+                  selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0
                 }
-                onChange={(e) => {
+                onChange={async (e) => {
                   if (e.target.checked) {
                     setSelectedLeadIds(filteredLeads.map((l) => l.id));
                   } else {
@@ -1658,10 +1912,7 @@ export default function Home() {
                 style={{ flex: 1 }}
               />
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="All">All</option>
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>
@@ -1686,22 +1937,17 @@ export default function Home() {
                 }}
                 onClick={async () => {
                   const leadsToDelete = filteredLeads.filter((lead) =>
-                    selectedLeadIds.includes(lead.id),
+                    selectedLeadIds.includes(lead.id)
                   );
 
-                  const { error } = await supabase
-                    .from("leads")
-                    .delete()
-                    .in("id", selectedLeadIds);
+                  const { error } = await supabase.from("leads").delete().in("id", selectedLeadIds);
 
                   if (error) return alert("Error deleting selected leads");
 
                   setUndoLeads(leadsToDelete);
                   setUndoLead(null);
 
-                  setLeads((prev) =>
-                    prev.filter((lead) => !selectedLeadIds.includes(lead.id)),
-                  );
+                  setLeads((prev) => prev.filter((lead) => !selectedLeadIds.includes(lead.id)));
 
                   showUndoToast(`${leadsToDelete.length} leads deleted`);
                   setSelectedLeadIds([]);
@@ -1720,13 +1966,14 @@ export default function Home() {
                   setSelectedLeadIds((prev) =>
                     prev.includes(lead.id)
                       ? prev.filter((id) => id !== lead.id)
-                      : [...prev, lead.id],
+                      : [...prev, lead.id]
                   );
                 }}
                 updateStatus={updateStatus}
                 markContacted={markContacted}
                 openWhatsApp={openWhatsApp}
                 deleteLead={deleteLead}
+                markSubmitted={markSubmitted}
                 updateLeadName={updateLeadName}
                 updateLeadPhone={updateLeadPhone}
                 updateLeadConsultant={updateLeadConsultant}
@@ -1781,8 +2028,7 @@ export default function Home() {
               document.body.style.userSelect = "none";
               document.body.style.webkitUserSelect = "none";
 
-              const card = e.currentTarget
-                .firstElementChild as HTMLElement | null;
+              const card = e.currentTarget.firstElementChild as HTMLElement | null;
               const rect = (card ?? e.currentTarget).getBoundingClientRect();
               const startDragX = addedToastDragX[toast.id] || 0;
 
@@ -1802,12 +2048,10 @@ export default function Home() {
               e.preventDefault();
               e.stopPropagation();
 
-              const rawDelta =
-                data.startDragX + (e.clientX - data.startClientX);
+              const rawDelta = data.startDragX + (e.clientX - data.startClientX);
               const delta = Math.max(data.minX, Math.min(data.maxX, rawDelta));
               const hitLeftEdge = data.startLeft + rawDelta <= 0;
-              const hitRightEdge =
-                data.startRight + rawDelta >= window.innerWidth;
+              const hitRightEdge = data.startRight + rawDelta >= window.innerWidth;
 
               if (hitLeftEdge || hitRightEdge) {
                 dismissAddedToast(toast.id);
@@ -1920,8 +2164,7 @@ export default function Home() {
 
               e.currentTarget.setPointerCapture(e.pointerId);
               setToastStartX(e.clientX - toastDragX);
-              const card = e.currentTarget
-                .firstElementChild as HTMLElement | null;
+              const card = e.currentTarget.firstElementChild as HTMLElement | null;
               const rect = (card ?? e.currentTarget).getBoundingClientRect();
               const startDragX = toastDragX;
 
@@ -1941,13 +2184,11 @@ export default function Home() {
               const rawNextX = e.clientX - toastStartX;
               const nextX = Math.max(
                 toastDragBoundsRef.current.minX,
-                Math.min(toastDragBoundsRef.current.maxX, rawNextX),
+                Math.min(toastDragBoundsRef.current.maxX, rawNextX)
               );
-              const hitLeftEdge =
-                toastDragBoundsRef.current.startLeft + rawNextX <= 0;
+              const hitLeftEdge = toastDragBoundsRef.current.startLeft + rawNextX <= 0;
               const hitRightEdge =
-                toastDragBoundsRef.current.startRight + rawNextX >=
-                window.innerWidth;
+                toastDragBoundsRef.current.startRight + rawNextX >= window.innerWidth;
 
               if (hitLeftEdge || hitRightEdge) {
                 stopUndoSequence();
@@ -2001,9 +2242,7 @@ export default function Home() {
           >
             <div
               className={`${
-                toastState.type === "undo"
-                  ? "toast undoToast"
-                  : "toast normalToast"
+                toastState.type === "undo" ? "toast undoToast" : "toast normalToast"
               } ${toastExiting ? "toastExiting" : ""}`}
               style={
                 {
@@ -2047,9 +2286,7 @@ export default function Home() {
                 } as React.CSSProperties
               }
             >
-              <span
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
-              >
+              <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span>
                   <span
                     style={{
@@ -2061,45 +2298,22 @@ export default function Home() {
                     }}
                   >
                     {toastState.type === "delete" && (
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                         <defs>
-                          <linearGradient
-                            id="trashGlow"
-                            x1="4"
-                            y1="3"
-                            x2="20"
-                            y2="21"
-                          >
+                          <linearGradient id="trashGlow" x1="4" y1="3" x2="20" y2="21">
                             <stop stopColor="#ff6b6b" />
                             <stop offset="1" stopColor="#dc2626" />
                           </linearGradient>
                         </defs>
 
-                        <rect
-                          x="5"
-                          y="7"
-                          width="14"
-                          height="14"
-                          rx="3"
-                          fill="url(#trashGlow)"
-                        />
+                        <rect x="5" y="7" width="14" height="14" rx="3" fill="url(#trashGlow)" />
                         <path
                           d="M9 7V5.5C9 4.7 9.7 4 10.5 4H13.5C14.3 4 15 4.7 15 5.5V7"
                           stroke="white"
                           strokeWidth="1.8"
                           strokeLinecap="round"
                         />
-                        <path
-                          d="M4 7H20"
-                          stroke="white"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                        />
+                        <path d="M4 7H20" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
                         <path
                           d="M10 11V17"
                           stroke="white"
@@ -2126,31 +2340,15 @@ export default function Home() {
                     )}
 
                     {toastState.type === "restore" && (
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                         <defs>
-                          <linearGradient
-                            id="restoreGlow"
-                            x1="4"
-                            y1="4"
-                            x2="20"
-                            y2="20"
-                          >
+                          <linearGradient id="restoreGlow" x1="4" y1="4" x2="20" y2="20">
                             <stop stopColor="#38bdf8" />
                             <stop offset="1" stopColor="#2563eb" />
                           </linearGradient>
                         </defs>
 
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="9"
-                          fill="url(#restoreGlow)"
-                        />
+                        <circle cx="12" cy="12" r="9" fill="url(#restoreGlow)" />
 
                         <path
                           d="M8.5 10.2H6.2V7.9"
@@ -2179,20 +2377,9 @@ export default function Home() {
                     )}
 
                     {toastState.type === "undo" && (
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                         <defs>
-                          <linearGradient
-                            id="undoGlow"
-                            x1="4"
-                            y1="4"
-                            x2="20"
-                            y2="20"
-                          >
+                          <linearGradient id="undoGlow" x1="4" y1="4" x2="20" y2="20">
                             <stop stopColor="#a78bfa" />
                             <stop offset="1" stopColor="#7c3aed" />
                           </linearGradient>
@@ -2232,31 +2419,15 @@ export default function Home() {
                     )}
 
                     {toastState.type === "normal" && (
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                         <defs>
-                          <linearGradient
-                            id="successGlow"
-                            x1="4"
-                            y1="4"
-                            x2="20"
-                            y2="20"
-                          >
+                          <linearGradient id="successGlow" x1="4" y1="4" x2="20" y2="20">
                             <stop stopColor="#34d399" />
                             <stop offset="1" stopColor="#059669" />
                           </linearGradient>
                         </defs>
 
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="9"
-                          fill="url(#successGlow)"
-                        />
+                        <circle cx="12" cy="12" r="9" fill="url(#successGlow)" />
 
                         <path
                           d="M8.5 12.5L11 15L16 10"
@@ -2315,10 +2486,7 @@ export default function Home() {
               </button>
 
               {toastState.type === "undo" && (
-                <div
-                  className="toastProgress"
-                  key={`progress-${toastState.id}`}
-                />
+                <div className="toastProgress" key={`progress-${toastState.id}`} />
               )}
             </div>
           </div>
@@ -2376,7 +2544,6 @@ function Card({
     </div>
   );
 }
-
 function LeadCard({
   lead,
   selected,
@@ -2385,6 +2552,7 @@ function LeadCard({
   markContacted,
   openWhatsApp,
   deleteLead,
+  markSubmitted,
   updateLeadName,
   updateLeadPhone,
   updateLeadConsultant,
@@ -2395,8 +2563,9 @@ function LeadCard({
   onToggleSelected: () => void;
   updateStatus: (id: string, status: string) => void;
   markContacted: (id: string) => void;
-  openWhatsApp: (lead: Lead) => void;
+  openWhatsApp: (lead: Lead) => void | Promise<void>;
   deleteLead: (lead: Lead) => void;
+  markSubmitted: (id: string) => void;
   updateLeadName: (id: string, newName: string) => void;
   updateLeadPhone: (id: string, newPhone: string) => void;
   updateLeadConsultant: (id: string, newConsultant: string) => void;
@@ -2407,8 +2576,191 @@ function LeadCard({
   const [editPhone, setEditPhone] = useState(lead.phone || "");
   const [editConsultant, setEditConsultant] = useState(lead.consultant || "");
   const [justSaved, setJustSaved] = useState(false);
+  const [avatarHovered, setAvatarHovered] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(lead.avatar_url || null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false);
+  const [leadAttachments, setLeadAttachments] = useState<LeadAttachment[]>([]);
+  const [leadActivities, setLeadActivities] = useState<LeadActivity[]>([]);
+  const noteWidth = 280;
+  const noteHeight = 240;
+
+  const [notePosition, setNotePosition] = useState({
+    x: typeof window !== "undefined" ? window.innerWidth - 340 : 900,
+    y: 120,
+  });
+
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [draggingNote, setDraggingNote] = useState(false);
+  useEffect(() => {
+    if (!draggingNote) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+
+      const nextX = Math.min(
+        Math.max(e.clientX - dragOffset.x, 8),
+        window.innerWidth - noteWidth - 8
+      );
+
+      const nextY = Math.min(
+        Math.max(e.clientY - dragOffset.y, 8),
+        window.innerHeight - noteHeight - 8
+      );
+
+      setNotePosition({ x: nextX, y: nextY });
+    };
+
+    const handleMouseUp = () => {
+      setDraggingNote(false);
+    };
+
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [draggingNote, dragOffset.x, dragOffset.y]);
+
+  useEffect(() => {
+    if (!timelineOpen) return;
+
+    const loadActivities = async () => {
+      const { data, error } = await supabase
+        .from("lead_activity")
+        .select("*")
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Timeline load failed:", error);
+        return;
+      }
+
+      setLeadActivities(data || []);
+    };
+
+    loadActivities();
+  }, [timelineOpen, lead.id]);
+
+  useEffect(() => {
+    if (!attachmentsOpen) return;
+
+    const loadAttachments = async () => {
+      const { data, error } = await supabase
+        .from("lead_attachments")
+        .select("*")
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Attachments load failed:", error);
+        return;
+      }
+
+      setLeadAttachments(data || []);
+    };
+
+    loadAttachments();
+  }, [attachmentsOpen, lead.id]);
+
+  const addActivity = useCallback(
+    async (type: string, text: string) => {
+      const { error } = await supabase.from("lead_activity").insert({
+        lead_id: lead.id,
+        activity_type: type,
+        activity_text: text,
+      });
+
+      if (error) {
+        console.error("Activity log failed:", error);
+      }
+    },
+    [lead.id]
+  );
+
+  const [notesDraft, setNotesDraft] = useState(lead.notes || "");
+  const lastLoggedNotesRef = useRef(lead.notes || "");
+  useEffect(() => {
+    const saveNotes = async () => {
+      const { error } = await supabase
+        .from("leads")
+        .update({ notes: notesDraft })
+        .eq("id", lead.id);
+
+      if (error) {
+        console.error("Notes save failed:", error);
+        return;
+      }
+
+      if (notesDraft !== lastLoggedNotesRef.current) {
+        lastLoggedNotesRef.current = notesDraft;
+        await addActivity("notes_updated", "Lead notes updated");
+      }
+    };
+
+    const timeout = setTimeout(saveNotes, 1000);
+    return () => clearTimeout(timeout);
+  }, [notesDraft, lead.id, addActivity]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const initials = lead.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const followUpDate = lead.next_follow_up_date ? new Date(lead.next_follow_up_date) : null;
+
+  const followUpDiff =
+    followUpDate !== null ? Math.ceil((followUpDate.getTime() - today.getTime()) / 86400000) : null;
   return (
-    <div className="leadCard">
+    <div
+      className={`leadCard ${
+        lead.source_type === "manager-assigned" ? "assignedLeadCard" : "selfLeadCard"
+      } ${lead.submitted ? "submittedLeadCard" : ""}`}
+      style={{
+        position: "relative",
+        overflow: "visible",
+        marginTop: "30px",
+      }}
+    >
+      <div
+        className={`leadFolderTab ${
+          lead.source_type === "manager-assigned" ? "assignedTab" : "selfTab"
+        }`}
+        style={{
+          position: "absolute",
+          top: "-24px",
+          left: "18px",
+          height: "32px",
+          padding: "0 22px",
+          display: "flex",
+          alignItems: "center",
+          borderRadius: "12px 12px 0 0",
+          border: "1px solid #d7dde6",
+          borderBottom: "none",
+          zIndex: 999,
+          background: lead.source_type === "manager-assigned" ? "#ecfdf3" : "#eef6ff",
+          color: lead.source_type === "manager-assigned" ? "#166534" : "#1d4ed8",
+          fontWeight: 700,
+          fontSize: "12px",
+        }}
+      >
+        {lead.source_type === "manager-assigned"
+          ? lead.submitted
+            ? "Submitted Assignment"
+            : "Manager Assigned"
+          : "Self Assigned"}
+      </div>
       <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
         <input
           type="checkbox"
@@ -2441,10 +2793,7 @@ function LeadCard({
                   placeholder="Phone"
                 />
 
-                <select
-                  value={editConsultant}
-                  onChange={(e) => setEditConsultant(e.target.value)}
-                >
+                <select value={editConsultant} onChange={(e) => setEditConsultant(e.target.value)}>
                   <option value="" disabled>
                     Select Consultant
                   </option>
@@ -2476,32 +2825,84 @@ function LeadCard({
                   Save
                 </button>
 
-                <button
-                  className="secondaryButton"
-                  onClick={() => setIsEditing(false)}
-                >
+                <button className="secondaryButton" onClick={() => setIsEditing(false)}>
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <strong className="leadName">{lead.name}</strong>
-          )}
-          <p>Consultant: {lead.consultant}</p>
-          <p>Phone: {lead.phone || "No phone"}</p>
-          <p>Ref: {lead.reference_number || "N/A"}</p>
+            <div style={{ lineHeight: 1.22 }}>
+              <strong className="leadName">{lead.name}</strong>
 
-          <span
-            className="badge"
-            style={{ background: badgeColor(lead.next_action) }}
-          >
+              <p style={{ margin: "3px 0" }}>Consultant: {lead.consultant}</p>
+              <p style={{ margin: "3px 0" }}>Phone: {lead.phone || "No phone"}</p>
+              <p style={{ margin: "3px 0" }}>Ref: {lead.reference_number || "N/A"}</p>
+              <div className="leadDateRow">
+                <label>
+                  Last Contact
+                  <input
+                    type="date"
+                    defaultValue={lead.last_contact_date || ""}
+                    onChange={async (e) => {
+                      await supabase
+                        .from("leads")
+                        .update({ last_contact_date: e.target.value || null })
+                        .eq("id", lead.id);
+
+                      await supabase.from("lead_activity").insert({
+                        lead_id: lead.id,
+                        activity_type: "last_contact_updated",
+                        activity_text: `Last contact date set to ${e.target.value}`,
+                      });
+                    }}
+                  />
+                </label>
+
+                <label>
+                  Next Follow-Up
+                  <input
+                    type="date"
+                    defaultValue={lead.next_follow_up_date || ""}
+                    onChange={async (e) => {
+                      await supabase
+                        .from("leads")
+                        .update({ next_follow_up_date: e.target.value || null })
+                        .eq("id", lead.id);
+
+                      await supabase.from("lead_activity").insert({
+                        lead_id: lead.id,
+                        activity_type: "follow_up_updated",
+                        activity_text: `Follow-up date set to ${e.target.value}`,
+                      });
+                    }}
+                  />
+                </label>
+              </div>
+              {followUpDiff !== null && (
+                <div
+                  className={
+                    followUpDiff < 0
+                      ? "followUpAlert overdue"
+                      : followUpDiff === 0
+                        ? "followUpAlert today"
+                        : "followUpAlert upcoming"
+                  }
+                >
+                  {followUpDiff < 0
+                    ? `🔴 Follow-up overdue by ${Math.abs(followUpDiff)} day(s)`
+                    : followUpDiff === 0
+                      ? "🟢 Follow-up due today"
+                      : `⏳ Follow-up in ${followUpDiff} day(s)`}
+                </div>
+              )}
+            </div>
+          )}
+
+          <span className="badge" style={{ background: badgeColor(lead.next_action) }}>
             {lead.next_action}
           </span>
 
-          <span
-            className="badge"
-            style={{ background: badgeColor(lead.status), marginLeft: 8 }}
-          >
+          <span className="badge" style={{ background: badgeColor(lead.status), marginLeft: 8 }}>
             {lead.status}
           </span>
         </div>
@@ -2514,47 +2915,392 @@ function LeadCard({
             onChange={(e) => updateStatus(lead.id, e.target.value)}
             className="statusSelect"
           >
-            <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Followed Up">Followed Up</option>
-            <option value="Viewing Scheduled">Viewing Scheduled</option>
-            <option value="Offer Made">Offer Made</option>
-            <option value="Won">Won</option>
-            <option value="Lost">Lost</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
 
-          <button
-            className="secondaryButton"
-            onClick={() => markContacted(lead.id)}
-          >
+          <button className="secondaryButton" onClick={() => markContacted(lead.id)}>
             Mark Contacted
           </button>
 
           <button className="whatsappButton" onClick={() => openWhatsApp(lead)}>
-            <svg
-              className="whatsappSvg"
-              viewBox="0 0 448 512"
-              aria-hidden="true"
-            >
+            <svg className="whatsappSvg" viewBox="0 0 448 512" aria-hidden="true">
               <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32 101.5 32 2 131.5 2 253.9c0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.5 224.1-221.9 0-59.3-25.2-115-67.1-157.1zM223.9 438.7c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3 18.6-68.1-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8s-14.3 18-17.6 21.8c-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2s-9.7 1.4-14.8 6.9c-5.1 5.6-19.4 19-19.4 46.3s19.9 53.7 22.6 57.4c2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
             </svg>
             WhatsApp
           </button>
 
           {!isEditing && (
-            <button
-              className="secondaryButton"
-              onClick={() => setIsEditing(true)}
-            >
-              Edit
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button className="secondaryButton" onClick={() => setIsEditing(true)}>
+                Edit
+              </button>
+
+              <button className="secondaryButton" onClick={() => setNotesOpen(true)}>
+                Notes
+              </button>
+
+              <button className="secondaryButton" onClick={() => setTimelineOpen(true)}>
+                Timeline
+              </button>
+
+              <button className="secondaryButton" onClick={() => setAttachmentsOpen(true)}>
+                Attachments
+              </button>
+            </div>
           )}
 
-          <button className="dangerButton" onClick={() => deleteLead(lead)}>
-            Delete
+          {lead.source_type === "manager-assigned" ? (
+            <button className="secondaryButton" onClick={() => markSubmitted(lead.id)}>
+              {lead.submitted ? "Unsubmit" : "Submit"}
+            </button>
+          ) : (
+            <button className="dangerButton" onClick={() => deleteLead(lead)}>
+              Delete
+            </button>
+          )}
+        </div>
+        {!isEditing && (
+          <div
+            className="leadAvatarUpload"
+            onClick={() => fileInputRef.current?.click()}
+            onMouseEnter={() => setAvatarHovered(true)}
+            onMouseLeave={() => setAvatarHovered(false)}
+            style={{
+              marginLeft: "12px",
+              marginRight: "4px",
+              width: "180px",
+              height: "96px",
+              borderRadius: "18px",
+              background: avatarHovered ? "#0f172a" : "#eef2f7",
+              border: "2px solid #d8e0ea",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              overflow: "hidden",
+              cursor: "pointer",
+              flexShrink: 0,
+              alignSelf: "center",
+              transform: "none",
+              transition: "all 0.2s ease",
+            }}
+          >
+            {!avatarHovered && avatarPreview ? (
+              <img
+                src={avatarPreview}
+                alt="Client avatar"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: "18px",
+                  boxShadow: "0 2px 8px rgba(15, 23, 42, 0.12)",
+                }}
+              />
+            ) : !avatarHovered ? (
+              <div
+                style={{
+                  fontSize: "70px",
+                  fontWeight: 950,
+                  lineHeight: 1,
+                  letterSpacing: "-0.14em",
+                  transform: "translateX(-4px)",
+                  fontFamily: "Inter, system-ui, sans-serif",
+                }}
+              >
+                {initials || "?"}
+              </div>
+            ) : (
+              <div
+                style={{
+                  color: "white",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  letterSpacing: "0.03em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <div
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    borderRadius: "14px",
+                    border: "1px solid rgba(255,255,255,0.45)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    fontWeight: 300,
+                  }}
+                >
+                  📁
+                </div>
+                <div style={{ lineHeight: 1.15 }}>
+                  Upload
+                  <br />
+                  Media
+                </div>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const fileExt = file.name.split(".").pop();
+                const filePath = `${lead.id}-${Date.now()}.${fileExt}`;
+
+                const { error: uploadError } = await supabase.storage
+                  .from("lead-avatars")
+                  .upload(filePath, file);
+
+                console.error("Avatar upload failed:", uploadError);
+
+                const { data } = supabase.storage.from("lead-avatars").getPublicUrl(filePath);
+
+                const publicUrl = data.publicUrl;
+
+                const { error: updateError } = await supabase
+                  .from("leads")
+                  .update({ avatar_url: publicUrl })
+                  .eq("id", lead.id);
+
+                console.error("Avatar update failed:", updateError);
+
+                setAvatarPreview(publicUrl);
+                await addActivity("avatar_uploaded", "Client photo uploaded");
+              }}
+            />
+          </div>
+        )}
+      </div>
+      {avatarPreview && !isEditing && (
+        <div
+          style={{
+            marginLeft: "6px",
+            marginRight: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            alignSelf: "center",
+          }}
+        >
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+
+              const { error } = await supabase
+                .from("leads")
+                .update({ avatar_url: null })
+                .eq("id", lead.id);
+
+              if (error) {
+                alert("Reset failed: " + error.message);
+                return;
+              }
+
+              setAvatarPreview(null);
+              await addActivity("avatar_reset", "Client photo reset");
+            }}
+            style={{
+              height: "30px",
+              padding: "0 11px",
+              borderRadius: "999px",
+              border: "1px solid #d6dee9",
+              background: "#f8fafc",
+              color: "#64748b",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+            }}
+          >
+            Reset
           </button>
         </div>
-      </div>
+      )}
+
+      {notesOpen &&
+        createPortal(
+          <div
+            className="notesOverlay"
+            style={{
+              left: notePosition.x,
+              top: notePosition.y,
+            }}
+          >
+            <div className="stickyNote">
+              <div
+                className="stickyNoteHeader"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+
+                  setDraggingNote(true);
+
+                  setDragOffset({
+                    x: e.clientX - notePosition.x,
+                    y: e.clientY - notePosition.y,
+                  });
+                }}
+              >
+                <span>Lead Notes</span>
+
+                <button
+                  type="button"
+                  className="stickyNoteClose"
+                  onClick={() => setNotesOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <textarea
+                className="stickyNoteTextarea"
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder={"• Called client\n• Wants follow-up\n• Sent brochure"}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {timelineOpen &&
+        createPortal(
+          <div
+            className="notesOverlay"
+            style={{
+              left: notePosition.x,
+              top: notePosition.y,
+            }}
+          >
+            <div className="stickyNote">
+              <div className="stickyNoteHeader">
+                <span>Activity Timeline</span>
+
+                <button
+                  type="button"
+                  className="stickyNoteClose"
+                  onClick={() => setTimelineOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="timelinePlaceholder">
+                {leadActivities.length === 0 ? (
+                  <div>No activity yet.</div>
+                ) : (
+                  leadActivities.map((activity) => (
+                    <div key={activity.id} className="timelineEvent">
+                      <div className="timelineEventText">{activity.activity_text}</div>
+                      <div className="timelineEventDate">
+                        {new Date(activity.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {attachmentsOpen &&
+        createPortal(
+          <div
+            className="notesOverlay"
+            style={{
+              left: notePosition.x,
+              top: notePosition.y,
+            }}
+          >
+            <div className="stickyNote">
+              <div className="stickyNoteHeader">
+                <span>Lead Attachments</span>
+
+                <button
+                  type="button"
+                  className="stickyNoteClose"
+                  onClick={() => setAttachmentsOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="timelinePlaceholder">
+                <input
+                  type="file"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+
+                    if (!file) return;
+
+                    const filePath = `${lead.id}/${Date.now()}-${file.name}`;
+
+                    const { error: uploadError } = await supabase.storage
+                      .from("lead-attachments")
+                      .upload(filePath, file);
+
+                    if (uploadError) {
+                      console.error("Upload failed:", uploadError);
+                      return;
+                    }
+
+                    const { data } = supabase.storage
+                      .from("lead-attachments")
+                      .getPublicUrl(filePath);
+
+                    await supabase.from("lead_attachments").insert({
+                      lead_id: lead.id,
+                      file_name: file.name,
+                      file_url: data.publicUrl,
+                    });
+
+                    const { data: attachments } = await supabase
+                      .from("lead_attachments")
+                      .select("*")
+                      .eq("lead_id", lead.id)
+                      .order("created_at", { ascending: false });
+
+                    setLeadAttachments(attachments || []);
+
+                    await addActivity("attachment_uploaded", `Attachment uploaded: ${file.name}`);
+                  }}
+                />
+
+                <div style={{ marginTop: "12px" }}>
+                  {leadAttachments.length === 0 ? (
+                    <div>No attachments yet.</div>
+                  ) : (
+                    leadAttachments.map((attachment) => (
+                      <div key={attachment.id} className="timelineEvent">
+                        <a href={attachment.file_url} target="_blank">
+                          {attachment.file_name}
+                        </a>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -2676,8 +3422,13 @@ function GlobalStyles() {
       }
 
       .leadCard {
+        position: relative;
+        overflow: visible;
         border: 1px solid #e2e8f0;
-        padding: 16px;
+        border-radius: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        padding: 12px;
+        margin-top: 18px;
         margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
