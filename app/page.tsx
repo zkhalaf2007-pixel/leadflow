@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createClient, User } from "@supabase/supabase-js";
+import { User } from "@supabase/supabase-js";
+import { supabase } from "@/app/lib/supabase";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { createPortal } from "react-dom";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
+import { addDepartment, deleteDepartment, getDepartments } from "@/app/lib/departments";
+import DepartmentManager from "@/app/components/DepartmentManager";
+import EmployeeDirectory from "@/app/components/EmployeeDirectory";
+import {
+  addEmployee,
+  deleteEmployee,
+  getEmployeeByEmail,
+  getEmployees,
+  updateEmployee,
+} from "@/app/lib/employees";
+import Image from "next/image";
 type Lead = {
   id: string;
   name: string;
@@ -147,6 +153,28 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [analyticsConsultant, setAnalyticsConsultant] = useState("All Consultants");
+  const [employees, setEmployees] = useState<
+    {
+      id: string;
+      email: string;
+      full_name: string;
+      role: string;
+      department: string | null;
+      active: boolean;
+    }[]
+  >([]);
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeEmail, setEmployeeEmail] = useState("");
+  const [employeeRole, setEmployeeRole] = useState("consultant");
+  const [employeeDepartment, setEmployeeDepartment] = useState("Sales");
+  const [departments, setDepartments] = useState<string[]>([
+    "Executive",
+    "Sales",
+    "Marketing",
+    "Operations",
+  ]);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+
   const analyticsLeads =
     analyticsConsultant === "All Consultants"
       ? leads
@@ -168,6 +196,24 @@ export default function Home() {
     type: "normal" | "undo" | "delete" | "restore";
     seconds: number;
   } | null>(null);
+  const [employeeRecord, setEmployeeRecord] = useState<{
+    id: string;
+    full_name: string;
+    email: string;
+    role: string;
+    department: string | null;
+    active: boolean;
+    created_at: string;
+    updated_at: string | null;
+  } | null>(null);
+  const isManager = employeeRecord?.role === "manager";
+  const isAdmin = employeeRecord?.role === "admin";
+
+  const permissions = {
+    canManageEmployees: isManager || isAdmin,
+    canViewReports: isManager || isAdmin,
+    canViewAnalytics: isManager || isAdmin,
+  };
   const [addedToastStack, setAddedToastStack] = useState<{ id: number; message: string }[]>([]);
   const [consultantNames, setConsultantNames] = useState<string[]>([]);
   const [addedToastDragX, setAddedToastDragX] = useState<Record<number, number>>({});
@@ -391,18 +437,38 @@ export default function Home() {
   }
 
   async function logIn() {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: authEmail,
       password: authPassword,
     });
 
     if (error) return alert(error.message);
+
+    const employee = await fetchEmployeeByEmail(data.user.email || "");
+
+    if (!employee) {
+      await supabase.auth.signOut();
+      alert("This email is not registered as an employee.");
+      return;
+    }
+
+    if (!employee.active) {
+      await supabase.auth.signOut();
+      alert("This employee account has been deactivated.");
+      return;
+    }
+    setEmployeeRecord(employee);
+    console.log("Employee login record:", employee);
+    setRole(employee.role);
+
+    setConsultant(employee.role === "consultant" ? employee.full_name : "All Consultants");
   }
 
   async function logOut() {
     await supabase.auth.signOut();
     setUser(null);
     setLeads([]);
+    setEmployeeRecord(null);
   }
 
   async function fetchRole(userId: string) {
@@ -427,7 +493,14 @@ export default function Home() {
       console.warn("No profile found for user");
     }
   }
-
+  async function fetchEmployeeByEmail(email: string) {
+    try {
+      return await getEmployeeByEmail(email);
+    } catch (error) {
+      console.error("Error fetching employee by email:", error);
+      return null;
+    }
+  }
   async function addConsultant() {
     if (!newConsultantName.trim()) {
       alert("Please enter a consultant name.");
@@ -500,7 +573,22 @@ export default function Home() {
 
     setConsultantNames(data.map((c) => c.name));
   }
-
+  async function fetchEmployees() {
+    try {
+      const employeeList = await getEmployees();
+      setEmployees(employeeList);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  }
+  async function fetchDepartments() {
+    try {
+      const departmentNames = await getDepartments();
+      setDepartments(departmentNames);
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  }
   async function addLead() {
     const cleanName = name.trim();
     const cleanPhone = phone.trim();
@@ -519,11 +607,11 @@ export default function Home() {
       next_action: getNextAction(lastContact || null),
       status,
       user_id: user!.id,
-      source_type: role === "manager" ? "manager-assigned" : "self-created",
+      source_type: isManager ? "manager-assigned" : "self-created",
 
       submitted: false,
 
-      assigned_by: role === "manager" ? user?.id : null,
+      assigned_by: isManager ? user?.id : null,
     });
 
     if (error) return alert("Error adding lead");
@@ -695,7 +783,44 @@ export default function Home() {
 
     await fetchLeads();
   }
+  async function handleDeleteDepartment(department: string) {
+    const employeesUsingDepartment = employees.filter(
+      (employee) => employee.department === department
+    );
 
+    if (employeesUsingDepartment.length > 0) {
+      alert(
+        `Cannot delete "${department}" because ${employeesUsingDepartment.length} employee(s) are assigned to it.`
+      );
+      return;
+    }
+
+    if (!confirm(`Delete ${department}?`)) return;
+
+    try {
+      await deleteDepartment(department);
+      await fetchDepartments();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to delete department.");
+    }
+  }
+  async function handleAddDepartment(department: string) {
+    const trimmedDepartment = department.trim();
+
+    if (!trimmedDepartment) return;
+
+    if (departments.includes(trimmedDepartment)) {
+      alert("That department already exists.");
+      return;
+    }
+
+    try {
+      await addDepartment(trimmedDepartment);
+      await fetchDepartments();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to add department.");
+    }
+  }
   useEffect(() => {
     const loadData = async () => {
       const { data } = await supabase.auth.getUser();
@@ -704,7 +829,17 @@ export default function Home() {
 
       if (data.user) {
         await fetchRole(data.user.id);
+
+        const employee = await fetchEmployeeByEmail(data.user.email || "");
+        if (employee) {
+          setEmployeeRecord(employee);
+          setRole(employee.role);
+          setConsultant(employee.role === "consultant" ? employee.full_name : "All Consultants");
+        }
+
         await fetchConsultants();
+        await fetchEmployees();
+        await fetchDepartments();
       }
     };
 
@@ -714,7 +849,18 @@ export default function Home() {
       setUser(session?.user || null);
       if (session?.user) {
         fetchRole(session.user.id);
+
+        fetchEmployeeByEmail(session.user.email || "").then((employee) => {
+          if (employee) {
+            setEmployeeRecord(employee);
+            setRole(employee.role);
+            setConsultant(employee.role === "consultant" ? employee.full_name : "All Consultants");
+          }
+        });
+
         fetchConsultants();
+        fetchEmployees();
+        fetchDepartments();
       } else {
         setRole(null);
         setLeads([]);
@@ -773,6 +919,16 @@ export default function Home() {
 
       return matchesSearch && matchesStatus;
     });
+  <div
+    style={{
+      marginBottom: "16px",
+      color: "#64748b",
+      fontSize: "14px",
+      fontWeight: 600,
+    }}
+  >
+    {employees.length} employee{employees.length !== 1 ? "s" : ""} found
+  </div>;
   const todayDateString = new Date().toISOString().split("T")[0];
 
   const overdueLeads = leads.filter(
@@ -939,14 +1095,16 @@ export default function Home() {
             Dashboard
           </div>
 
-          {role === "manager" ? (
+          {permissions.canViewAnalytics && (
             <>
-              <div
-                className={`navText ${activePage === "analytics" ? "active" : ""}`}
-                onClick={() => setActivePage("analytics")}
-              >
-                Analytics
-              </div>
+              {permissions.canViewAnalytics && (
+                <div
+                  className={`navText ${activePage === "analytics" ? "active" : ""}`}
+                  onClick={() => setActivePage("analytics")}
+                >
+                  Analytics
+                </div>
+              )}
 
               <div
                 className={`navText ${activePage === "consultants" ? "active" : ""}`}
@@ -954,55 +1112,242 @@ export default function Home() {
               >
                 Consultants
               </div>
-
-              <div
-                className={`navText ${activePage === "reports" ? "active" : ""}`}
-                onClick={() => setActivePage("reports")}
-              >
-                Reports
-              </div>
-            </>
-          ) : (
-            <>
-              <div
-                className={`navText ${activePage === "my-leads" ? "active" : ""}`}
-                onClick={() => setActivePage("my-leads")}
-              >
-                My Leads
-              </div>
-
-              <div
-                className={`navText ${activePage === "assigned-leads" ? "active" : ""}`}
-                onClick={() => setActivePage("assigned-leads")}
-              >
-                Assigned Leads (
-                {
-                  leads.filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
-                    .length
-                }
-                )
-              </div>
-
-              <div
-                className={`navText ${activePage === "my-followups" ? "active" : ""}`}
-                onClick={() => setActivePage("my-followups")}
-              >
-                My Follow-Ups
-              </div>
-
-              <div
-                className={`navText ${activePage === "my-performance" ? "active" : ""}`}
-                onClick={() => setActivePage("my-performance")}
-              >
-                My Performance
-              </div>
+              {permissions.canManageEmployees && (
+                <div
+                  className={`navText ${activePage === "employees" ? "active" : ""}`}
+                  onClick={() => setActivePage("employees")}
+                >
+                  Employees
+                </div>
+              )}
+              {permissions.canViewReports && (
+                <div
+                  className={`navText ${activePage === "reports" ? "active" : ""}`}
+                  onClick={() => setActivePage("reports")}
+                >
+                  Reports
+                </div>
+              )}
             </>
           )}
+          <>
+            <div
+              className={`navText ${activePage === "my-leads" ? "active" : ""}`}
+              onClick={() => setActivePage("my-leads")}
+            >
+              My Leads
+            </div>
+
+            <div
+              className={`navText ${activePage === "assigned-leads" ? "active" : ""}`}
+              onClick={() => setActivePage("assigned-leads")}
+            >
+              Assigned Leads (
+              {
+                leads.filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
+                  .length
+              }
+              )
+            </div>
+
+            <div
+              className={`navText ${activePage === "my-followups" ? "active" : ""}`}
+              onClick={() => setActivePage("my-followups")}
+            >
+              My Follow-Ups
+            </div>
+
+            <div
+              className={`navText ${activePage === "my-performance" ? "active" : ""}`}
+              onClick={() => setActivePage("my-performance")}
+            >
+              My Performance
+            </div>
+          </>
         </div>
       </aside>
 
       <section className="content">
-        {activePage === "analytics" && (
+        {activePage === "employees" && permissions.canManageEmployees && (
+          <section className="panel">
+            <EmployeeDirectory
+              employees={employees}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+            />
+            <div className="formGrid">
+              <input
+                placeholder="Full name"
+                value={employeeName}
+                onChange={(e) => setEmployeeName(e.target.value)}
+              />
+              <input
+                placeholder="Email"
+                value={employeeEmail}
+                onChange={(e) => setEmployeeEmail(e.target.value)}
+              />
+
+              <select value={employeeRole} onChange={(e) => setEmployeeRole(e.target.value)}>
+                <option value="consultant">Consultant</option>
+                <option value="manager">Manager</option>
+                <option value="accountant">Accountant</option>
+                <option value="admin">Admin</option>
+              </select>
+
+              <select
+                value={employeeDepartment}
+                onChange={(e) => setEmployeeDepartment(e.target.value)}
+              >
+                {departments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="primaryButton"
+              onClick={async () => {
+                if (!employeeName || !employeeEmail) {
+                  alert("Please enter a name and email.");
+                  return;
+                }
+
+                const payload = {
+                  full_name: employeeName,
+                  email: employeeEmail,
+                  role: employeeRole,
+                  department: employeeDepartment,
+                  active: true,
+                };
+
+                try {
+                  if (editingEmployeeId) {
+                    await updateEmployee(editingEmployeeId, payload);
+                  } else {
+                    await addEmployee(payload);
+                  }
+                } catch (error) {
+                  alert(error instanceof Error ? error.message : "Failed to save employee.");
+                  return;
+                }
+
+                setEditingEmployeeId(null);
+                setEmployeeName("");
+                setEmployeeEmail("");
+                setEmployeeRole("consultant");
+                setEmployeeDepartment("Sales");
+
+                await fetchEmployees();
+                await fetchDepartments();
+              }}
+            >
+              {editingEmployeeId ? "Save Employee" : "+ Add Employee"}
+            </button>
+
+            <div style={{ marginTop: "24px" }}>
+              {employees
+                .filter((employee) =>
+                  `${employee.full_name} ${employee.email}`
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase())
+                )
+                .map((employee) => (
+                  <div key={employee.id} className="leadCard">
+                    <div>
+                      <strong>{employee.full_name}</strong>
+                      <p>{employee.email}</p>
+                      <p>
+                        {employee.role} · {employee.department || "No department"}
+                      </p>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          width: "fit-content",
+                          padding: "6px 10px",
+                          borderRadius: "999px",
+                          fontSize: "12px",
+                          fontWeight: 800,
+                          background: employee.active ? "#dcfce7" : "#fee2e2",
+                          color: employee.active ? "#166534" : "#991b1b",
+                        }}
+                      >
+                        {employee.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                      <button
+                        className="secondaryButton"
+                        onClick={() => {
+                          setEditingEmployeeId(employee.id);
+                          setEmployeeName(employee.full_name);
+                          setEmployeeEmail(employee.email);
+                          setEmployeeRole(employee.role);
+                          setEmployeeDepartment(employee.department || "Sales");
+                        }}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="dangerButton"
+                        onClick={async () => {
+                          const action = employee.active ? "deactivate" : "reactivate";
+
+                          if (!confirm(`Are you sure you want to ${action} this employee?`)) return;
+
+                          const { error } = await supabase
+                            .from("employees")
+                            .update({ active: !employee.active })
+                            .eq("id", employee.id);
+
+                          if (error) {
+                            alert(error.message);
+                            return;
+                          }
+
+                          await fetchEmployees();
+                          await fetchDepartments();
+                        }}
+                      >
+                        {employee.active ? "Deactivate" : "Reactivate"}
+                      </button>
+                      <button
+                        className="dangerButton"
+                        onClick={async () => {
+                          if (!confirm("Delete this employee permanently?")) return;
+
+                          try {
+                            await deleteEmployee(employee.id);
+
+                            await fetchEmployees();
+                            await fetchDepartments();
+                          } catch (error) {
+                            alert(
+                              error instanceof Error ? error.message : "Failed to delete employee."
+                            );
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+            <hr style={{ margin: "32px 0" }} />
+
+            <DepartmentManager
+              departments={departments}
+              employees={employees}
+              onAdd={handleAddDepartment}
+              onDelete={handleDeleteDepartment}
+            />
+          </section>
+        )}
+        {activePage === "analytics" && permissions.canViewAnalytics && (
           <section className="panel">
             <h1 className="sectionTitle">Consultant Analytics</h1>
 
@@ -1145,7 +1490,7 @@ export default function Home() {
             </div>
           </section>
         )}
-        {activePage === "reports" && (
+        {activePage === "reports" && permissions.canViewReports && (
           <section className="panel">
             <h1 className="pageTitle">Reports</h1>
 
@@ -1351,7 +1696,7 @@ export default function Home() {
           <header className="header">
             <div>
               <h1 className="pageTitle">Dashboard</h1>
-              {activePage === "dashboard" && role === "manager" && (
+              {activePage === "dashboard" && permissions.canViewAnalytics && (
                 <div className="fieldGroup">
                   <label className="mutedLabel">Manager View</label>
 
@@ -1388,7 +1733,7 @@ export default function Home() {
           </header>
         )}
 
-        {activePage === "dashboard" && role === "manager" && (
+        {activePage === "dashboard" && permissions.canViewAnalytics && (
           <div className="cards">
             <Card label="Total Leads" value={leads.length} />
             <Card label="Urgent Follow-Ups" value={followUps.length} color="#f97316" />
@@ -1396,7 +1741,7 @@ export default function Home() {
             <Card label="Won Deals" value={won} color="#16a34a" />
           </div>
         )}
-        {activePage === "dashboard" && role === "manager" && (
+        {activePage === "dashboard" && permissions.canViewAnalytics && (
           <div className="panel" style={{ marginTop: "24px", padding: "24px" }}>
             <h2 className="sectionTitle">Team Performance</h2>
 
@@ -1471,7 +1816,7 @@ export default function Home() {
               border: "1px solid #eef2f7",
             }}
           >
-            {role === "manager" && (
+            {permissions.canViewAnalytics && (
               <div style={{ marginBottom: "28px" }}>
                 <h2 style={{ marginBottom: "16px" }}>
                   Manage Consultants ({consultantNames.length})
@@ -1739,7 +2084,7 @@ export default function Home() {
           </section>
         )}
 
-        {activePage === "dashboard" && role === "manager" && (
+        {activePage === "dashboard" && permissions.canViewAnalytics && (
           <section className="panel" style={{ marginBottom: "24px" }}>
             <h2>Follow-Up Queue</h2>
 
@@ -2984,13 +3329,13 @@ function LeadCard({
               overflow: "hidden",
               cursor: "pointer",
               flexShrink: 0,
-              alignSelf: "center",
-              transform: "none",
+              alignSelf: "flex-start",
+              transform: "translateY(0px)",
               transition: "all 0.2s ease",
             }}
           >
             {!avatarHovered && avatarPreview ? (
-              <img
+              <Image
                 src={avatarPreview}
                 alt="Client avatar"
                 style={{
