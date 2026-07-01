@@ -1082,7 +1082,39 @@ export default function Home() {
   if (!role) {
     return <div>Loading role...</div>;
   }
+  async function handleSaveEmployee() {
+    if (!employeeName || !employeeEmail) {
+      alert("Please enter a name and email.");
+      return;
+    }
 
+    const payload = {
+      full_name: employeeName,
+      email: employeeEmail,
+      role: employeeRole,
+      department: employeeDepartment,
+      active: true,
+    };
+
+    try {
+      if (editingEmployeeId) {
+        await updateEmployee(editingEmployeeId, payload);
+      } else {
+        await addEmployee(payload);
+      }
+
+      setEditingEmployeeId(null);
+      setEmployeeName("");
+      setEmployeeEmail("");
+      setEmployeeRole("consultant");
+      setEmployeeDepartment("Sales");
+
+      await fetchEmployees();
+      await fetchDepartments();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to save employee.");
+    }
+  }
   return (
     <main className="app">
       <aside className="sidebar">
@@ -1220,39 +1252,7 @@ export default function Home() {
               employeeDepartment={employeeDepartment}
               setEmployeeDepartment={setEmployeeDepartment}
               departments={departments}
-              onSubmit={async () => {
-                if (!employeeName || !employeeEmail) {
-                  alert("Please enter a name and email.");
-                  return;
-                }
-
-                const payload = {
-                  full_name: employeeName,
-                  email: employeeEmail,
-                  role: employeeRole,
-                  department: employeeDepartment,
-                  active: true,
-                };
-
-                try {
-                  if (editingEmployeeId) {
-                    await updateEmployee(editingEmployeeId, payload);
-                  } else {
-                    await addEmployee(payload);
-                  }
-
-                  setEditingEmployeeId(null);
-                  setEmployeeName("");
-                  setEmployeeEmail("");
-                  setEmployeeRole("consultant");
-                  setEmployeeDepartment("Sales");
-
-                  await fetchEmployees();
-                  await fetchDepartments();
-                } catch (error) {
-                  alert(error instanceof Error ? error.message : "Failed to save employee.");
-                }
-              }}
+              onSubmit={handleSaveEmployee}
               submitLabel={editingEmployeeId ? "Save Employee" : "+ Add Employee"}
             />
             <hr style={{ margin: "32px 0" }} />
