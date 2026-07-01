@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { addDepartment, deleteDepartment, getDepartments } from "@/app/lib/departments";
 import DepartmentManager from "@/app/components/DepartmentManager";
 import EmployeeDirectory from "@/app/components/EmployeeDirectory";
+import EmployeeForm from "@/app/components/EmployeeForm";
 import {
   addEmployee,
   deleteEmployee,
@@ -1174,41 +1175,52 @@ export default function Home() {
               employees={employees}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
+              onEdit={(employee) => {
+                setEditingEmployeeId(employee.id);
+                setEmployeeName(employee.full_name);
+                setEmployeeEmail(employee.email);
+                setEmployeeRole(employee.role);
+                setEmployeeDepartment(employee.department || "Sales");
+              }}
+              onToggleActive={async (employee) => {
+                const confirmed = confirm(
+                  `Are you sure you want to ${
+                    employee.active ? "deactivate" : "reactivate"
+                  } ${employee.full_name}?`
+                );
+
+                if (!confirmed) return;
+
+                await updateEmployee(employee.id, {
+                  active: !employee.active,
+                });
+
+                await fetchEmployees();
+                await fetchDepartments();
+              }}
+              onDelete={async (employee) => {
+                const confirmed = confirm(`Are you sure you want to delete ${employee.full_name}?`);
+
+                if (!confirmed) return;
+
+                await deleteEmployee(employee.id);
+
+                await fetchEmployees();
+                await fetchDepartments();
+              }}
             />
-            <div className="formGrid">
-              <input
-                placeholder="Full name"
-                value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
-              />
-              <input
-                placeholder="Email"
-                value={employeeEmail}
-                onChange={(e) => setEmployeeEmail(e.target.value)}
-              />
-
-              <select value={employeeRole} onChange={(e) => setEmployeeRole(e.target.value)}>
-                <option value="consultant">Consultant</option>
-                <option value="manager">Manager</option>
-                <option value="accountant">Accountant</option>
-                <option value="admin">Admin</option>
-              </select>
-
-              <select
-                value={employeeDepartment}
-                onChange={(e) => setEmployeeDepartment(e.target.value)}
-              >
-                {departments.map((department) => (
-                  <option key={department} value={department}>
-                    {department}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              className="primaryButton"
-              onClick={async () => {
+            <EmployeeForm
+              editing={editingEmployeeId !== null}
+              employeeName={employeeName}
+              setEmployeeName={setEmployeeName}
+              employeeEmail={employeeEmail}
+              setEmployeeEmail={setEmployeeEmail}
+              employeeRole={employeeRole}
+              setEmployeeRole={setEmployeeRole}
+              employeeDepartment={employeeDepartment}
+              setEmployeeDepartment={setEmployeeDepartment}
+              departments={departments}
+              onSubmit={async () => {
                 if (!employeeName || !employeeEmail) {
                   alert("Please enter a name and email.");
                   return;
@@ -1228,115 +1240,21 @@ export default function Home() {
                   } else {
                     await addEmployee(payload);
                   }
+
+                  setEditingEmployeeId(null);
+                  setEmployeeName("");
+                  setEmployeeEmail("");
+                  setEmployeeRole("consultant");
+                  setEmployeeDepartment("Sales");
+
+                  await fetchEmployees();
+                  await fetchDepartments();
                 } catch (error) {
                   alert(error instanceof Error ? error.message : "Failed to save employee.");
-                  return;
                 }
-
-                setEditingEmployeeId(null);
-                setEmployeeName("");
-                setEmployeeEmail("");
-                setEmployeeRole("consultant");
-                setEmployeeDepartment("Sales");
-
-                await fetchEmployees();
-                await fetchDepartments();
               }}
-            >
-              {editingEmployeeId ? "Save Employee" : "+ Add Employee"}
-            </button>
-
-            <div style={{ marginTop: "24px" }}>
-              {employees
-                .filter((employee) =>
-                  `${employee.full_name} ${employee.email}`
-                    .toLowerCase()
-                    .includes(searchTerm.toLowerCase())
-                )
-                .map((employee) => (
-                  <div key={employee.id} className="leadCard">
-                    <div>
-                      <strong>{employee.full_name}</strong>
-                      <p>{employee.email}</p>
-                      <p>
-                        {employee.role} · {employee.department || "No department"}
-                      </p>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          width: "fit-content",
-                          padding: "6px 10px",
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 800,
-                          background: employee.active ? "#dcfce7" : "#fee2e2",
-                          color: employee.active ? "#166534" : "#991b1b",
-                        }}
-                      >
-                        {employee.active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                      <button
-                        className="secondaryButton"
-                        onClick={() => {
-                          setEditingEmployeeId(employee.id);
-                          setEmployeeName(employee.full_name);
-                          setEmployeeEmail(employee.email);
-                          setEmployeeRole(employee.role);
-                          setEmployeeDepartment(employee.department || "Sales");
-                        }}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        className="dangerButton"
-                        onClick={async () => {
-                          const action = employee.active ? "deactivate" : "reactivate";
-
-                          if (!confirm(`Are you sure you want to ${action} this employee?`)) return;
-
-                          const { error } = await supabase
-                            .from("employees")
-                            .update({ active: !employee.active })
-                            .eq("id", employee.id);
-
-                          if (error) {
-                            alert(error.message);
-                            return;
-                          }
-
-                          await fetchEmployees();
-                          await fetchDepartments();
-                        }}
-                      >
-                        {employee.active ? "Deactivate" : "Reactivate"}
-                      </button>
-                      <button
-                        className="dangerButton"
-                        onClick={async () => {
-                          if (!confirm("Delete this employee permanently?")) return;
-
-                          try {
-                            await deleteEmployee(employee.id);
-
-                            await fetchEmployees();
-                            await fetchDepartments();
-                          } catch (error) {
-                            alert(
-                              error instanceof Error ? error.message : "Failed to delete employee."
-                            );
-                          }
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-            </div>
+              submitLabel={editingEmployeeId ? "Save Employee" : "+ Add Employee"}
+            />
             <hr style={{ margin: "32px 0" }} />
 
             <DepartmentManager
