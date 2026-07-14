@@ -562,17 +562,18 @@ export default function Home() {
   }
 
   async function fetchConsultants() {
-    const { data, error } = await supabase
-      .from("consultants")
-      .select("name")
-      .order("name", { ascending: true });
+    try {
+      const employeeList = await getEmployees();
 
-    if (error) {
+      const names = employeeList
+        .filter((employee) => employee.active && employee.role === "consultant")
+        .sort((a, b) => a.full_name.localeCompare(b.full_name))
+        .map((employee) => employee.full_name);
+
+      setConsultantNames(names);
+    } catch (error) {
       console.error("Error fetching consultants:", error);
-      return;
     }
-
-    setConsultantNames(data.map((c) => c.name));
   }
   async function fetchEmployees() {
     try {
