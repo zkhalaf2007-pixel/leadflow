@@ -35,6 +35,7 @@ type Lead = {
   notes?: string | null;
   last_contact_date?: string | null;
   next_follow_up_date?: string | null;
+  assigned_employee_id?: string | null;
 };
 
 type LeadActivity = {
@@ -147,6 +148,7 @@ export default function Home() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState("");
   const [consultant, setConsultant] = useState("");
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState("");
   const [phone, setPhone] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [lastContact, setLastContact] = useState("");
@@ -549,11 +551,7 @@ export default function Home() {
     showToast("Consultant removed", "delete");
   }
   async function fetchLeads() {
-    let query = supabase.from("leads").select("*").order("created_at", { ascending: false });
-
-    if (role === "consultant") {
-      query = query.eq("consultant", consultant.trim());
-    }
+    const query = supabase.from("leads").select("*").order("created_at", { ascending: false });
 
     const { data, error } = await query;
 
@@ -603,6 +601,7 @@ export default function Home() {
     const { error } = await supabase.from("leads").insert({
       name: cleanName,
       consultant,
+      assigned_employee_id: assignedEmployeeId || null,
       phone: cleanPhone,
       reference_number: cleanRef,
       last_contact: lastContact || null,
@@ -622,6 +621,7 @@ export default function Home() {
     if (role !== "consultant") {
       setConsultant("");
     }
+    setAssignedEmployeeId("");
     setPhone("");
     setReferenceNumber("");
     setLastContact("");
@@ -906,6 +906,11 @@ export default function Home() {
   const filteredLeads = leads
     .filter((lead) => {
       if (role === "consultant") {
+        if (lead.assigned_employee_id) {
+          return lead.assigned_employee_id === employeeRecord?.id;
+        }
+
+        // Temporary support for older leads that have no employee UUID yet.
         return lead.consultant === consultant;
       }
 
@@ -1178,8 +1183,12 @@ export default function Home() {
             >
               Assigned Leads (
               {
-                leads.filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
-                  .length
+                leads.filter(
+                  (lead) =>
+                    lead.source_type === "manager-assigned" &&
+                    !lead.submitted &&
+                    lead.assigned_employee_id === employeeRecord?.id
+                ).length
               }
               )
             </div>
@@ -1557,7 +1566,12 @@ export default function Home() {
             <h2>Active Assignments</h2>
 
             {leads
-              .filter((lead) => lead.source_type === "manager-assigned" && !lead.submitted)
+              .filter(
+                (lead) =>
+                  lead.source_type === "manager-assigned" &&
+                  !lead.submitted &&
+                  lead.assigned_employee_id === employeeRecord?.id
+              )
               .map((lead) => (
                 <LeadCard
                   key={lead.id}
@@ -1869,31 +1883,28 @@ export default function Home() {
                   />
 
                   <select
-                    value={consultant}
-                    onChange={(e) => setConsultant(e.target.value)}
-                    onFocus={(e) => {
-                      e.currentTarget.style.border = "1px solid #2563eb";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.border = "1px solid #d1d5db";
-                    }}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "10px",
-                      border: "1px solid #d1d5db",
-                      width: "100%",
-                      fontSize: "14px",
-                      backgroundColor: "#f9fafb",
-                      cursor: "pointer",
-                      outline: "none",
+                    value={assignedEmployeeId}
+                    onChange={(event) => {
+                      const employeeId = event.target.value;
+
+                      const selectedEmployee = employees.find(
+                        (employee) => employee.id === employeeId
+                      );
+
+                      setAssignedEmployeeId(employeeId);
+                      setConsultant(selectedEmployee?.full_name ?? "");
                     }}
                   >
                     <option value="">Select Consultant</option>
-                    {consultantNames.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
+
+                    {employees
+                      .filter((employee) => employee.active && employee.role === "consultant")
+                      .sort((a, b) => a.full_name.localeCompare(b.full_name))
+                      .map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.full_name}
+                        </option>
+                      ))}
                   </select>
 
                   <input
@@ -3254,9 +3265,11 @@ function LeadCard({
             }}
           >
             {!avatarHovered && avatarPreview ? (
-              <Image
+              <img
                 src={avatarPreview}
                 alt="Client avatar"
+                width={96}
+                height={96}
                 style={{
                   width: "100%",
                   height: "100%",
@@ -3329,9 +3342,14 @@ function LeadCard({
 
                 const { error: uploadError } = await supabase.storage
                   .from("lead-avatars")
-                  .upload(filePath, file);
+                  .upload(filePath, file, {
+                    upsert: true,
+                  });
 
-                console.error("Avatar upload failed:", uploadError);
+                if (uploadError) {
+                  console.error("Avatar upload failed:", uploadError);
+                  return;
+                }
 
                 const { data } = supabase.storage.from("lead-avatars").getPublicUrl(filePath);
 
@@ -3342,7 +3360,10 @@ function LeadCard({
                   .update({ avatar_url: publicUrl })
                   .eq("id", lead.id);
 
-                console.error("Avatar update failed:", updateError);
+                if (updateError) {
+                  console.error("Avatar update failed:", updateError);
+                  return;
+                }
 
                 setAvatarPreview(publicUrl);
                 await addActivity("avatar_uploaded", "Client photo uploaded");
