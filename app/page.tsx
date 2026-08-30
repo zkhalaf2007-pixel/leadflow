@@ -248,8 +248,6 @@ export default function Home() {
     startRight: 0,
   });
   const [, setUndoSeconds] = useState(0);
-  const [newConsultantName, setNewConsultantName] = useState("");
-  const [consultantToDelete, setConsultantToDelete] = useState("");
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastRunIdRef = useRef(0);
   const normalToastTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -474,28 +472,6 @@ export default function Home() {
     setEmployeeRecord(null);
   }
 
-  async function fetchRole(userId: string) {
-    console.log("Fetching role for user:", userId);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("role, consultant_name")
-      .eq("id", userId)
-      .maybeSingle();
-
-    console.log("Profile result:", data, error);
-
-    if (error) {
-      console.error("Error fetching role:", error);
-      return;
-    }
-
-    if (data) {
-      setRole(data.role);
-      setConsultant(data.consultant_name || "");
-    } else {
-      console.warn("No profile found for user");
-    }
-  }
   async function fetchEmployeeByEmail(email: string) {
     try {
       return await getEmployeeByEmail(email);
@@ -503,52 +479,6 @@ export default function Home() {
       console.error("Error fetching employee by email:", error);
       return null;
     }
-  }
-  async function addConsultant() {
-    if (!newConsultantName.trim()) {
-      alert("Please enter a consultant name.");
-      return;
-    }
-    const cleanName = newConsultantName.trim();
-    const exists = consultants.some((c) => c.toLowerCase() === cleanName.toLowerCase());
-
-    if (exists) {
-      alert("This consultant already exists.");
-      return;
-    }
-
-    const { error } = await supabase.from("consultants").insert({
-      name: cleanName,
-    });
-
-    if (error) return alert("Error adding consultant");
-
-    setNewConsultantName("");
-    fetchConsultants();
-    showToast("Consultant added", "normal");
-  }
-
-  async function deleteConsultant(name: string) {
-    const assignedLeadCount = leads.filter((lead) => lead.consultant === name).length;
-
-    if (assignedLeadCount > 0) {
-      showToast(
-        `${name} is assigned to ${assignedLeadCount} lead(s). Reassign them before deleting.`,
-        "delete"
-      );
-      return;
-    }
-    const { error } = await supabase.from("consultants").delete().eq("name", name);
-
-    if (error) {
-      console.error("Error deleting consultant:", error);
-      return alert("Error deleting consultant");
-    }
-
-    // 🔑 Wait for fresh data from DB ONLY
-    await fetchConsultants();
-
-    showToast("Consultant removed", "delete");
   }
   async function fetchLeads() {
     const query = supabase.from("leads").select("*").order("created_at", { ascending: false });
@@ -830,8 +760,6 @@ export default function Home() {
       setUser(data.user);
 
       if (data.user) {
-        await fetchRole(data.user.id);
-
         const employee = await fetchEmployeeByEmail(data.user.email || "");
         if (employee) {
           setEmployeeRecord(employee);
@@ -850,8 +778,6 @@ export default function Home() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
       if (session?.user) {
-        fetchRole(session.user.id);
-
         fetchEmployeeByEmail(session.user.email || "").then((employee) => {
           if (employee) {
             setEmployeeRecord(employee);
@@ -1749,105 +1675,6 @@ export default function Home() {
               border: "1px solid #eef2f7",
             }}
           >
-            {permissions.canViewAnalytics && (
-              <div style={{ marginBottom: "28px" }}>
-                <h2 style={{ marginBottom: "16px" }}>
-                  Manage Consultants ({consultantNames.length})
-                </h2>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "12px",
-                    marginBottom: "24px",
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    type="text"
-                    placeholder="New consultant name"
-                    value={newConsultantName}
-                    onChange={(e) => setNewConsultantName(e.target.value)}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      border: "1px solid #d1d5db",
-                      flex: 1,
-                      fontSize: "14px",
-                    }}
-                  />
-
-                  <button
-                    onClick={addConsultant}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#1d4ed8";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#2563eb";
-                    }}
-                    style={{
-                      backgroundColor: "#2563eb",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "10px 16px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      transition: "background-color 0.15s ease",
-                    }}
-                  >
-                    Add Consultant
-                  </button>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Remove Existing Consultant
-                  </label>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      alignItems: "center",
-                    }}
-                  >
-                    <select
-                      value={consultantToDelete}
-                      onChange={(e) => setConsultantToDelete(e.target.value)}
-                    >
-                      <option value="">Select consultant...</option>
-                      {consultantNames.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      onClick={() => deleteConsultant(consultantToDelete)}
-                      style={{
-                        backgroundColor: "#dc2626",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
             {activePage === "dashboard" && (
               <>
                 <h2>Add Lead</h2>
